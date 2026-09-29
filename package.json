@@ -1,0 +1,27 @@
+{
+  "name": "gorotv-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "goroTV - Ecosistema IPTV Multiplataforma con Panel de Control y Servidor",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:server": "npm --workspace=apps/server run dev",
+    "dev:client": "npm --workspace=apps/client run dev",
+    "dev:admin": "npm --workspace=apps/admin run dev",
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces"
+  },
+  "keywords": [
+    "iptv",
+    "xtream-codes",
+    "smart-tv",
+    "tizen",
+    "webos",
+    "android-tv",
+    "fire-tv"
+  ],
+  "author": "goroTV",
+  "license": "MIT"
+}

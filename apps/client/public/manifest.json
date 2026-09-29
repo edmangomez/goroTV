@@ -1,0 +1,17 @@
+{
+  "name": "goroTV",
+  "short_name": "goroTV",
+  "description": "goroTV - Plataforma Multiplataforma de Streaming IPTV",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0B0F19",
+  "theme_color": "#0B0F19",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

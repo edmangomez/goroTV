@@ -1,0 +1,38 @@
+# Build stage para el backend con Node.js 22/24
+FROM node:22-alpine AS builder
+
+WORKDIR /app
+
+# Copiar manifests de dependencias
+COPY package.json package-lock.json ./
+COPY apps/server/package.json ./apps/server/
+COPY apps/admin/package.json ./apps/admin/
+COPY apps/client/package.json ./apps/client/
+
+RUN npm install
+
+# Copiar código fuente del server
+COPY apps/server ./apps/server
+
+# Compilar TypeScript
+RUN npm --workspace=apps/server run build
+
+# Production runtime stage
+FROM node:22-alpine AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV PORT=3001
+
+COPY package.json package-lock.json ./
+COPY apps/server/package.json ./apps/server/
+
+RUN npm install --omit=dev
+
+COPY --from=builder /app/apps/server/dist ./apps/server/dist
+COPY apps/server/src/db/schema.sql ./apps/server/dist/db/schema.sql
+
+EXPOSE 3001
+
+CMD ["node", "apps/server/dist/index.js"]

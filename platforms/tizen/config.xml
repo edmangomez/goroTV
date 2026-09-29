@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets" id="http://gorotv.com/goroTV" version="1.0.0" viewmodes="maximized">
+    <tizen:application id="x6k9Jp3q1Z.goroTV" package="x6k9Jp3q1Z" exec="index.html" screen-orientation="landscape" context-menu="enable" background-support="disable" encryption="disable" install-location="auto"/>
+    <tizen:profile name="tv-samsung"/>
+    
+    <!-- Permisos de Internet y control remoto Tizen Smart Remote -->
+    <tizen:privilege name="http://tizen.org/privilege/internet"/>
+    <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
+    <tizen:privilege name="http://tizen.org/privilege/application.launch"/>
+
+    <!-- Acceso ilimitado para evitar restricciones CORS en streams de video -->
+    <access origin="*" subdomains="true"/>
+
+    <tizen:metadata key="http://samsung.com/tv/metadata/use.developer.mode" value="true"/>
+    <name>goroTV</name>
+    <icon src="icon.png"/>
+    <description>goroTV - Plataforma Multiplataforma IPTV para Samsung Smart TV</description>
+</widget>

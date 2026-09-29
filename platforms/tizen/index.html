@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>goroTV Tizen Loader</title>
+    <style>
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            background-color: #0B0F19; overflow: hidden;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            font-family: sans-serif; color: #FFFFFF;
+        }
+        .spinner {
+            width: 48px; height: 48px; border: 4px solid #1E293B;
+            border-top: 4px solid #3B82F6; border-radius: 50%;
+            animation: spin 1s linear infinite; margin-bottom: 16px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+    <script>
+        // Registrar teclas multimedia y control remoto en Samsung Tizen
+        document.addEventListener('DOMContentLoaded', function() {
+            try {
+                if (window.tizen && tizen.tvinputdevice) {
+                    var keys = [
+                        'MediaPlay', 'MediaPause', 'MediaPlayPause', 'MediaStop',
+                        'MediaFastForward', 'MediaRewind',
+                        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+                        'ColorF0Red', 'ColorF1Green', 'ColorF2Yellow', 'ColorF3Blue'
+                    ];
+                    keys.forEach(function(keyName) {
+                        try { tizen.tvinputdevice.registerKey(keyName); } catch(e) {}
+                    });
+                }
+            } catch(e) {}
+
+            // Reemplaza con la URL de tu túnel de Cloudflare
+            var HOSTED_URL = 'https://gorotv.tudominio.com';
+            
+            // Redirigir a la Hosted Web App en tu Proxmox LXC
+            window.location.replace(HOSTED_URL);
+        });
+    </script>
+</head>
+<body>
+    <div class="spinner"></div>
+    <div style="font-size: 16px; font-weight: bold; letter-spacing: 1px;">Iniciando goroTV...</div>
+</body>
+</html>

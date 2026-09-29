@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>goroTV webOS Loader</title>
+    <style>
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            background-color: #0B0F19; overflow: hidden;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            font-family: sans-serif; color: #FFFFFF;
+        }
+        .spinner {
+            width: 48px; height: 48px; border: 4px solid #1E293B;
+            border-top: 4px solid #3B82F6; border-radius: 50%;
+            animation: spin 1s linear infinite; margin-bottom: 16px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // URL de tu túnel de Cloudflare apuntando a tu Proxmox LXC
+            var HOSTED_URL = 'https://gorotv.tudominio.com';
+            window.location.replace(HOSTED_URL);
+        });
+    </script>
+</head>
+<body>
+    <div class="spinner"></div>
+    <div style="font-size: 16px; font-weight: bold; letter-spacing: 1px;">Iniciando goroTV en LG webOS...</div>
+</body>
+</html>

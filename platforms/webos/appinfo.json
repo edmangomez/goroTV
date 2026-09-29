@@ -1,0 +1,17 @@
+{
+  "id": "com.gorotv.app",
+  "version": "1.0.0",
+  "vendor": "goroTV",
+  "type": "web",
+  "main": "index.html",
+  "title": "goroTV",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "bgImage": "bgImage.png",
+  "resolution": "1920x1080",
+  "requiredVersion": "4.0.0",
+  "accessibility": {
+    "supportsAudioGuidance": false
+  },
+  "trustLevel": "trusted"
+}

@@ -1,0 +1,53 @@
+services:
+  # Backend API & Base de Datos SQLite
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.server
+    container_name: gorotv_api
+    restart: always
+    environment:
+      - PORT=3001
+      - NODE_ENV=production
+      - JWT_SECRET=${JWT_SECRET:-gorotv_super_secret_jwt_key_production_2026}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-gorotv_aes256_secret_key_32chars!}
+      - DATABASE_PATH=/app/data/gorotv.sqlite
+    volumes:
+      - gorotv-data:/app/data
+    networks:
+      - gorotv-net
+
+  # Nginx Reverse Proxy + App Cliente (/) + Panel Admin (/admin/)
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.apps
+    container_name: gorotv_web
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+    networks:
+      - gorotv-net
+
+  # Túnel Seguro de Cloudflare (cloudflared)
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: gorotv_tunnel
+    restart: always
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - web
+    networks:
+      - gorotv-net
+
+networks:
+  gorotv-net:
+    driver: bridge
+
+volumes:
+  gorotv-data:
+    name: gorotv_sqlite_data
