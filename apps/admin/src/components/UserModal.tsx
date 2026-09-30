@@ -170,21 +170,23 @@ export const UserModal: React.FC<UserModalProps> = ({
             <label className="block text-xs font-semibold text-slate-300 mb-1">
               Proveedor IPTV Asignado <span className="text-red-400">*</span>
             </label>
-            <select
-              value={providerId}
-              onChange={(e) => setProviderId(Number(e.target.value))}
-              className="w-full bg-background border border-surfaceLight rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-            >
-              {providers.length === 0 ? (
-                <option value={0}>Primero debes registrar un proveedor en la pestaña Proveedores</option>
-              ) : (
-                providers.map((p) => (
+            {providers.length === 0 ? (
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs leading-relaxed">
+                ⚠️ <strong>Aviso:</strong> Aún no tienes ningún Proveedor IPTV configurado. Ve primero a la pestaña <strong>"Proveedores Xtream"</strong> para añadir los datos de tu servidor IPTV antes de registrar clientes.
+              </div>
+            ) : (
+              <select
+                value={providerId}
+                onChange={(e) => setProviderId(Number(e.target.value))}
+                className="w-full bg-background border border-surfaceLight rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+              >
+                {providers.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name} ({p.host})
                   </option>
-                ))
-              )}
-            </select>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* Pantallas simultáneas */}

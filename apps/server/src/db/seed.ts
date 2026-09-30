@@ -11,7 +11,7 @@ export async function seedDatabase(): Promise<void> {
     const hashed = await hashPassword(adminPass);
 
     db.prepare('INSERT INTO admins (username, password_hash) VALUES (?, ?)').run(adminUser, hashed);
-    console.log(`[Seed] Usuario administrador inicial creado: ${adminUser} / ${adminPass}`);
+    console.log(`[Seed] Usuario administrador inicial creado: ${adminUser}`);
   }
 }
 

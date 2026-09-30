@@ -14,7 +14,11 @@ import {
   toggleUserStatus,
   deleteUser,
   getUserSessions,
-  terminateUserSessions
+  terminateUserSessions,
+  getAdmins,
+  createAdmin,
+  changeAdminPassword,
+  deleteAdmin
 } from '../controllers/adminController.js';
 import { requireAdmin } from '../middleware/adminMiddleware.js';
 
@@ -45,3 +49,10 @@ adminRouter.post('/users/:id/renew', renewUser);
 adminRouter.post('/users/:id/toggle-status', toggleUserStatus);
 adminRouter.get('/users/:id/sessions', getUserSessions);
 adminRouter.delete('/users/:id/sessions', terminateUserSessions);
+
+// Gestión y Seguridad de Administradores
+adminRouter.get('/admins', getAdmins);
+adminRouter.post('/admins', createAdmin);
+adminRouter.post('/change-password', changeAdminPassword);
+adminRouter.delete('/admins/:id', deleteAdmin);
+

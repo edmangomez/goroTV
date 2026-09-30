@@ -23,5 +23,8 @@
     "fire-tv"
   ],
   "author": "goroTV",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "puppeteer-core": "^25.12.0"
+  }
 }

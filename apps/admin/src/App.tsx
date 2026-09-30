@@ -10,6 +10,7 @@ import { UserModal } from './components/UserModal';
 import { ProviderModal } from './components/ProviderModal';
 import { RenewModal } from './components/RenewModal';
 import { SessionsModal } from './components/SessionsModal';
+import { AdminSecurityModal } from './components/AdminSecurityModal';
 
 export const App: React.FC = () => {
   // Auth state
@@ -48,6 +49,8 @@ export const App: React.FC = () => {
 
   const [sessionsModalOpen, setSessionsModalOpen] = useState(false);
   const [inspectingUser, setInspectingUser] = useState<ClientUser | null>(null);
+
+  const [securityModalOpen, setSecurityModalOpen] = useState(false);
 
   // Handle logout
   const handleLogout = useCallback(() => {
@@ -233,7 +236,7 @@ export const App: React.FC = () => {
             <div className="mt-6 pt-5 border-t border-surfaceLight text-center">
               <div className="flex items-center justify-center gap-1.5 text-xs text-slate-500">
                 <ShieldCheck className="w-4 h-4 text-blue-500" />
-                <span>Credenciales por defecto: admin / admin1234</span>
+                <span>Acceso restringido para personal autorizado</span>
               </div>
             </div>
           </div>
@@ -250,6 +253,7 @@ export const App: React.FC = () => {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onLogout={handleLogout}
+        onOpenSecurity={() => setSecurityModalOpen(true)}
         activeSessionsCount={stats.activeSessions}
       />
 
@@ -325,6 +329,13 @@ export const App: React.FC = () => {
         onClose={() => setSessionsModalOpen(false)}
         user={inspectingUser}
         onSessionsTerminated={loadData}
+      />
+
+      <AdminSecurityModal
+        isOpen={securityModalOpen}
+        onClose={() => setSecurityModalOpen(false)}
+        currentAdmin={admin}
+        onAdminUpdated={(updated) => setAdmin(updated)}
       />
     </div>
   );

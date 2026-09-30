@@ -321,11 +321,42 @@ export async function searchSubtitles(req: Request, res: Response): Promise<void
   }
 }
 
+function isSafeSubtitleUrl(urlString: string): boolean {
+  try {
+    const parsed = new URL(urlString);
+    if (parsed.protocol !== 'https:') return false;
+
+    const hostname = parsed.hostname.toLowerCase();
+    if (
+      hostname === 'localhost' ||
+      hostname.endsWith('.local') ||
+      hostname.endsWith('.internal') ||
+      /^127\./.test(hostname) ||
+      /^10\./.test(hostname) ||
+      /^192\.168\./.test(hostname) ||
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname) ||
+      /^169\.254\./.test(hostname) ||
+      /^::1$/.test(hostname) ||
+      /^fe80:/i.test(hostname)
+    ) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function downloadSubtitle(req: Request, res: Response): Promise<void> {
   try {
     const targetUrl = req.query.url as string;
     if (!targetUrl) {
       res.status(400).send('URL requerida');
+      return;
+    }
+
+    if (!isSafeSubtitleUrl(targetUrl)) {
+      res.status(403).send('URL de subtítulo inválida o denegada por seguridad');
       return;
     }
 

@@ -169,5 +169,43 @@ export const adminApi = {
       headers: getAuthHeaders()
     });
     return handleResponse(res);
+  },
+
+  // Gestión de Administradores
+  async getAdmins(): Promise<{ id: number; username: string; created_at: string }[]> {
+    const res = await fetch(`${API_BASE}/admins`, {
+      headers: getAuthHeaders()
+    });
+    return handleResponse(res);
+  },
+
+  async createAdmin(data: { username: string; password: string }): Promise<{ id: number; username: string; message: string }> {
+    const res = await fetch(`${API_BASE}/admins`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data)
+    });
+    return handleResponse(res);
+  },
+
+  async changeAdminPassword(data: {
+    currentPassword: string;
+    newUsername?: string;
+    newPassword?: string;
+  }): Promise<{ success: boolean; message: string; admin: { id: number; username: string } }> {
+    const res = await fetch(`${API_BASE}/change-password`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data)
+    });
+    return handleResponse(res);
+  },
+
+  async deleteAdmin(id: number): Promise<{ success: boolean; message: string }> {
+    const res = await fetch(`${API_BASE}/admins/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
+    return handleResponse(res);
   }
 };

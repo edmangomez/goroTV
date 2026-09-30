@@ -1,5 +1,5 @@
 import React from 'react';
-import { Tv, Users, Server, LogOut, Activity } from 'lucide-react';
+import { Tv, Users, Server, LogOut, Activity, Key } from 'lucide-react';
 import { Admin } from '../types';
 
 interface NavbarProps {
@@ -7,6 +7,7 @@ interface NavbarProps {
   activeTab: 'users' | 'providers';
   setActiveTab: (tab: 'users' | 'providers') => void;
   onLogout: () => void;
+  onOpenSecurity: () => void;
   activeSessionsCount: number;
 }
 
@@ -15,6 +16,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   setActiveTab,
   onLogout,
+  onOpenSecurity,
   activeSessionsCount,
 }) => {
   return (
@@ -63,14 +65,23 @@ export const Navbar: React.FC<NavbarProps> = ({
         </nav>
 
         {/* Right side info & logout */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
             <Activity className="w-3.5 h-3.5 animate-pulse" />
             <span>{activeSessionsCount} pantalla(s) en vivo</span>
           </div>
 
-          <div className="flex items-center gap-3 pl-2 border-l border-surfaceLight">
-            <div className="text-right hidden md:block">
+          <button
+            onClick={onOpenSecurity}
+            title="Seguridad y Administradores"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-background border border-surfaceLight hover:border-blue-500/50 transition-all shadow-sm"
+          >
+            <Key className="w-3.5 h-3.5 text-blue-400" />
+            <span className="hidden md:inline">Seguridad & Admins</span>
+          </button>
+
+          <div className="flex items-center gap-3 pl-1 border-l border-surfaceLight">
+            <div className="text-right hidden xl:block">
               <p className="text-xs text-slate-400">Conectado como</p>
               <p className="text-sm font-semibold text-white">{admin.username}</p>
             </div>

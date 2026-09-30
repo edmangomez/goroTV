@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { db } from '../db/database.js';
 import { hashPassword, comparePassword, encryptText, decryptText } from '../utils/crypto.js';
 import { signAdminToken } from '../utils/jwt.js';
+import { AuthenticatedAdminRequest } from '../middleware/adminMiddleware.js';
 
 // --- AUTENTICACIÓN ADMIN ---
 export async function adminLogin(req: Request, res: Response): Promise<void> {
@@ -403,4 +404,124 @@ export function terminateUserSessions(req: Request, res: Response): void {
   const { id } = req.params;
   db.prepare('DELETE FROM active_sessions WHERE user_id = ?').run(id);
   res.json({ success: true, message: 'Todas las sesiones del cliente fueron cerradas' });
+}
+
+// --- GESTIÓN DE ADMINISTRADORES ---
+export function getAdmins(req: AuthenticatedAdminRequest, res: Response): void {
+  const admins = db.prepare('SELECT id, username, created_at FROM admins ORDER BY id ASC').all();
+  res.json(admins);
+}
+
+export async function createAdmin(req: AuthenticatedAdminRequest, res: Response): Promise<void> {
+  const { username, password } = req.body;
+  if (!username || !password) {
+    res.status(400).json({ error: 'MISSING_FIELDS', message: 'Usuario y contraseña requeridos' });
+    return;
+  }
+
+  const cleanUser = username.trim();
+  const cleanPass = password.trim();
+
+  if (cleanUser.length < 3) {
+    res.status(400).json({ error: 'USERNAME_TOO_SHORT', message: 'El usuario debe tener al menos 3 caracteres' });
+    return;
+  }
+  if (cleanPass.length < 6) {
+    res.status(400).json({ error: 'PASSWORD_TOO_SHORT', message: 'La contraseña debe tener al menos 6 caracteres' });
+    return;
+  }
+
+  const existing = db.prepare('SELECT id FROM admins WHERE username = ?').get(cleanUser);
+  if (existing) {
+    res.status(409).json({ error: 'USERNAME_EXISTS', message: 'Este nombre de usuario administrador ya existe' });
+    return;
+  }
+
+  const passwordHash = await hashPassword(cleanPass);
+  const result = db.prepare('INSERT INTO admins (username, password_hash) VALUES (?, ?)').run(cleanUser, passwordHash);
+
+  res.status(201).json({
+    id: result.lastInsertRowid,
+    username: cleanUser,
+    message: 'Administrador creado con éxito'
+  });
+}
+
+export async function changeAdminPassword(req: AuthenticatedAdminRequest, res: Response): Promise<void> {
+  const adminId = req.admin?.adminId;
+  const { currentPassword, newUsername, newPassword } = req.body;
+
+  if (!adminId) {
+    res.status(401).json({ error: 'UNAUTHORIZED', message: 'Sesión no válida' });
+    return;
+  }
+
+  if (!currentPassword) {
+    res.status(400).json({ error: 'MISSING_FIELDS', message: 'Debes ingresar tu contraseña actual para confirmar cambios' });
+    return;
+  }
+
+  const admin = db.prepare('SELECT * FROM admins WHERE id = ?').get(adminId) as any;
+  if (!admin) {
+    res.status(404).json({ error: 'NOT_FOUND', message: 'Administrador no encontrado' });
+    return;
+  }
+
+  const isMatch = await comparePassword(currentPassword, admin.password_hash);
+  if (!isMatch) {
+    res.status(401).json({ error: 'INVALID_CREDENTIALS', message: 'La contraseña actual es incorrecta' });
+    return;
+  }
+
+  let updatedUsername = admin.username;
+  if (newUsername && newUsername.trim() !== admin.username) {
+    const cleanUser = newUsername.trim();
+    if (cleanUser.length < 3) {
+      res.status(400).json({ error: 'USERNAME_TOO_SHORT', message: 'El usuario debe tener al menos 3 caracteres' });
+      return;
+    }
+    const existing = db.prepare('SELECT id FROM admins WHERE username = ? AND id != ?').get(cleanUser, adminId);
+    if (existing) {
+      res.status(409).json({ error: 'USERNAME_EXISTS', message: 'El nuevo nombre de usuario ya está en uso' });
+      return;
+    }
+    updatedUsername = cleanUser;
+  }
+
+  let updatedHash = admin.password_hash;
+  if (newPassword && newPassword.trim()) {
+    const cleanPass = newPassword.trim();
+    if (cleanPass.length < 6) {
+      res.status(400).json({ error: 'PASSWORD_TOO_SHORT', message: 'La nueva contraseña debe tener al menos 6 caracteres' });
+      return;
+    }
+    updatedHash = await hashPassword(cleanPass);
+  }
+
+  db.prepare('UPDATE admins SET username = ?, password_hash = ? WHERE id = ?').run(updatedUsername, updatedHash, adminId);
+
+  res.json({
+    success: true,
+    message: 'Credenciales de administrador actualizadas correctamente',
+    admin: { id: adminId, username: updatedUsername }
+  });
+}
+
+export function deleteAdmin(req: AuthenticatedAdminRequest, res: Response): void {
+  const targetId = parseInt(req.params.id, 10);
+  const currentAdminId = req.admin?.adminId;
+
+  if (targetId === currentAdminId) {
+    res.status(400).json({ error: 'CANNOT_DELETE_SELF', message: 'No puedes eliminar tu propia cuenta de administrador en uso' });
+    return;
+  }
+
+  const adminCount = (db.prepare('SELECT COUNT(*) as count FROM admins').get() as any).count;
+  if (adminCount <= 1) {
+    res.status(400).json({ error: 'CANNOT_DELETE_LAST_ADMIN', message: 'No se puede eliminar el único administrador del sistema' });
+    return;
+  }
+
+  db.prepare('DELETE FROM admins WHERE id = ?').run(targetId);
+  res.json({ success: true, message: 'Administrador eliminado correctamente' });
 }

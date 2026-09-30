@@ -12,9 +12,10 @@ const app = express();
 const PORT = parseInt(process.env.PORT || '3001', 10);
 
 // Middleware global
+app.disable('x-powered-by');
 app.use(cors({ origin: '*' }));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '500kb' }));
+app.use(express.urlencoded({ extended: true, limit: '500kb' }));
 
 // Health check para Proxmox / Docker / Cloudflare Tunnel
 app.get('/api/health', (req, res) => {
