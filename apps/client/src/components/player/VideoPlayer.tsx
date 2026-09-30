@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import shaka from 'shaka-player';
 import Hls from 'hls.js';
 import mpegts from 'mpegts.js';
-import { Loader2, AlertCircle, RefreshCw, Tv, X } from 'lucide-react';
+import { Loader2, AlertCircle, RefreshCw, Tv, X, ShieldAlert } from 'lucide-react';
 import { MediaTrack, SubtitleStyle, Channel } from '../../types';
 import { PlayerOSD } from './PlayerOSD';
 import { TracksModal } from './TracksModal';
@@ -1410,15 +1410,58 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         </div>
       )}
 
-      {/* Mensaje de Error */}
+      {/* Mensaje de Error / Diagnóstico de Contenido Mixto */}
       {error && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 z-25 p-6 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-4">
-            <AlertCircle className="w-8 h-8 text-red-400" />
-          </div>
-          <h3 className="text-lg font-bold text-white mb-1">Transmisión no disponible</h3>
-          <p className="text-xs text-slate-400 max-w-md mb-6">{error}</p>
-          <div className="flex items-center gap-3">
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-25 p-6 text-center animate-in fade-in duration-200">
+          {typeof window !== 'undefined' && window.location.protocol === 'https:' ? (
+            <div className="max-w-lg bg-surface/90 border border-white/10 rounded-2xl p-5 text-left shadow-2xl backdrop-blur-xl">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
+                  <ShieldAlert className="w-5 h-5 text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Bloqueo de Navegador (Contenido Mixto)</h3>
+                  <p className="text-[11px] text-slate-400">Protección estándar de Chrome/Edge en sitios HTTPS</p>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-300 leading-relaxed mb-3">
+                Para no saturar el servidor ni el túnel, la transmisión se conecta <strong>directamente al proveedor IPTV</strong> en HTTP plano. Tu navegador bloquea la conexión directa por seguridad.
+              </p>
+
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-xs text-amber-200 space-y-1.5 mb-3">
+                <p className="font-bold text-amber-300 text-[11px]">💡 Para ver en este navegador (solo toma 10 segundos):</p>
+                <ol className="list-decimal list-inside space-y-1 text-slate-300 text-[11px]">
+                  <li>Haz clic en el icono de <strong>candado o ajustes</strong> a la izquierda de la URL en la barra de tu navegador.</li>
+                  <li>Entra a <strong>Configuración del sitio</strong> (Site settings).</li>
+                  <li>Busca <strong>Contenido no seguro</strong> (Insecure content) y cámbialo a <strong>Permitir</strong>.</li>
+                  <li>Recarga la página y el canal se reproducirá al instante en Full HD directo.</li>
+                </ol>
+              </div>
+
+              <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-2.5 text-center">
+                <p className="text-[11px] text-slate-300">
+                  🏠 En tu hogar o Smart TV, puedes ver sin configurar nada abriendo en tu red local:
+                </p>
+                <a
+                  href="http://192.168.2.240/"
+                  className="inline-block mt-1 text-xs font-mono font-bold text-blue-400 hover:text-blue-300 hover:underline"
+                >
+                  http://192.168.2.240/
+                </a>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-4">
+                <AlertCircle className="w-8 h-8 text-red-400" />
+              </div>
+              <h3 className="text-lg font-bold text-white mb-1">Transmisión no disponible</h3>
+              <p className="text-xs text-slate-400 max-w-md mb-6">{error}</p>
+            </>
+          )}
+
+          <div className="flex items-center gap-3 mt-4">
             <button
               onClick={() => {
                 setError(null);
