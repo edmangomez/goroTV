@@ -30,7 +30,10 @@ export const UserModal: React.FC<UserModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Inicializar el formulario SOLO cuando se abre el modal o cambia el usuario inicial
   useEffect(() => {
+    if (!isOpen) return;
+
     if (initialUser) {
       setUsername(initialUser.username);
       setPassword('');
@@ -52,7 +55,14 @@ export const UserModal: React.FC<UserModalProps> = ({
       setNotes('');
     }
     setError(null);
-  }, [initialUser, isOpen, providers]);
+  }, [isOpen, initialUser]);
+
+  // Si no había proveedor asignado y llegan los proveedores, seleccionar el primero sin tocar los campos de texto
+  useEffect(() => {
+    if (isOpen && !initialUser && providerId === 0 && providers.length > 0) {
+      setProviderId(providers[0].id);
+    }
+  }, [isOpen, initialUser, providerId, providers]);
 
   if (!isOpen) return null;
 

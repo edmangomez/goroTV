@@ -82,13 +82,20 @@ export const App: React.FC = () => {
     }
   }, [admin]);
 
+  const isModalOpenRef = React.useRef(false);
+  isModalOpenRef.current = !!(userModalOpen || providerModalOpen || renewModalOpen || sessionsModalOpen || securityModalOpen);
+
   useEffect(() => {
     if (admin) {
       setLoading(true);
       loadData().finally(() => setLoading(false));
 
-      // Auto-refresco de métricas cada 15 segundos
-      const interval = setInterval(loadData, 15000);
+      // Auto-refresco de métricas cada 15 segundos (se pausa si hay modales de edición abiertos)
+      const interval = setInterval(() => {
+        if (!isModalOpenRef.current) {
+          loadData();
+        }
+      }, 15000);
       return () => clearInterval(interval);
     }
   }, [admin, loadData]);
