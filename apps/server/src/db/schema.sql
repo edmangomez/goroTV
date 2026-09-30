@@ -49,8 +49,30 @@ CREATE TABLE IF NOT EXISTS admins (
     created_at    TEXT DEFAULT (datetime('now'))
 );
 
+-- Progreso de reproducción ('Continuar viendo' estilo Netflix)
+CREATE TABLE IF NOT EXISTS user_playback_progress (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id          INTEGER NOT NULL,
+    content_type     TEXT NOT NULL CHECK(content_type IN ('movie', 'series')),
+    stream_id        INTEGER NOT NULL,
+    series_id        INTEGER,
+    season_num       INTEGER,
+    episode_num      INTEGER,
+    episode_id       INTEGER,
+    title            TEXT NOT NULL,
+    subtitle         TEXT,
+    poster_url       TEXT,
+    progress_seconds REAL NOT NULL DEFAULT 0,
+    duration_seconds REAL NOT NULL DEFAULT 0,
+    completed        INTEGER NOT NULL DEFAULT 0,
+    updated_at       TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(user_id, content_type, stream_id)
+);
+
 -- Índices de alto rendimiento
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_provider_id ON users(provider_id);
 CREATE INDEX IF NOT EXISTS idx_active_sessions_user_id ON active_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_active_sessions_last_ping ON active_sessions(last_ping);
+CREATE INDEX IF NOT EXISTS idx_playback_user_updated ON user_playback_progress(user_id, updated_at);

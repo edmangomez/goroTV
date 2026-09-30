@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Film, Star, Play, X, Clock, Calendar, Loader2, Search, Layers } from 'lucide-react';
-import { Category, Movie, MovieDetailInfo, ClientSession } from '../types';
+import { Film, Star, Play, X, Clock, Calendar, Loader2, Search, Layers, RotateCcw } from 'lucide-react';
+import { Category, Movie, MovieDetailInfo, ClientSession, PlaybackProgress } from '../types';
 import { XtreamApiClient } from '../services/xtreamApi';
 import { FavoriteCategoryItem, localDB } from '../services/db';
 import { VideoPlayer } from '../components/player/VideoPlayer';
+import { ContinueWatchingRow } from '../components/vod/ContinueWatchingRow';
+import { progressApi } from '../services/progressApi';
 
 interface MoviesViewProps {
   session: ClientSession;
@@ -23,16 +25,19 @@ export const MoviesView: React.FC<MoviesViewProps> = ({ session, searchQuery }) 
 
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [movieDetail, setMovieDetail] = useState<MovieDetailInfo | null>(null);
+  const [movieProgress, setMovieProgress] = useState<PlaybackProgress | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [playingMovie, setPlayingMovie] = useState<{
     movie: Movie;
     url: string;
     fallbackUrls?: string[];
+    initialTime?: number;
   } | null>(null);
   const [favorites, setFavorites] = useState<{ [id: number]: boolean }>({});
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const xtream = new XtreamApiClient(session.provider);
+
 
   // Cargar categorías, favoritos y categorías favoritas iniciales
   useEffect(() => {
@@ -171,10 +176,19 @@ export const MoviesView: React.FC<MoviesViewProps> = ({ session, searchQuery }) 
 
   const handleOpenDetail = async (movie: Movie) => {
     setSelectedMovie(movie);
+    setMovieDetail(null);
+    setMovieProgress(null);
     setLoadingDetail(true);
     try {
-      const info = await xtream.getVodInfo(movie.stream_id);
+      const [info, progressList] = await Promise.all([
+        xtream.getVodInfo(movie.stream_id),
+        progressApi.getProgress('movie'),
+      ]);
       setMovieDetail(info);
+      const found = progressList.find(
+        (p) => p.streamId === movie.stream_id && !p.completed && p.progressSeconds >= 10
+      );
+      setMovieProgress(found || null);
     } catch (err) {
       console.error('Error al cargar detalle:', err);
     } finally {
@@ -182,12 +196,13 @@ export const MoviesView: React.FC<MoviesViewProps> = ({ session, searchQuery }) 
     }
   };
 
-  const handlePlayMovie = (movie: Movie) => {
+  const handlePlayMovie = (movie: Movie, initialTime = 0) => {
     const ext = movie.container_extension || 'mp4';
     const directUrl = xtream.getMovieStreamUrl(movie.stream_id, ext);
     setPlayingMovie({
       movie,
       url: directUrl,
+      initialTime,
     });
   };
 
@@ -218,14 +233,20 @@ export const MoviesView: React.FC<MoviesViewProps> = ({ session, searchQuery }) 
         <VideoPlayer
           key={`movie-${playingMovie.movie.stream_id}`}
           streamUrl={playingMovie.url}
+          fallbackUrls={playingMovie.fallbackUrls}
           title={playingMovie.movie.name}
           categoryName="Película VOD"
           isLive={false}
           onBack={() => setPlayingMovie(null)}
+          initialTime={playingMovie.initialTime}
+          contentType="movie"
+          streamId={playingMovie.movie.stream_id}
+          posterUrl={playingMovie.movie.stream_icon}
         />
       </div>
     );
   }
+
 
   return (
     <div className="flex-1 flex flex-col lg:flex-row h-full min-h-0 overflow-hidden">
@@ -534,6 +555,44 @@ export const MoviesView: React.FC<MoviesViewProps> = ({ session, searchQuery }) 
         className="flex-1 p-4 sm:p-6 overflow-y-auto h-full focus:outline-none"
         onScroll={handleScroll}
       >
+        {/* Continuar Viendo Carrusel estilo Netflix */}
+        <ContinueWatchingRow
+          contentType="movie"
+          onPlayItem={(item) => {
+            const mov = movies.find((m) => m.stream_id === item.streamId) || {
+              stream_id: item.streamId,
+              name: item.title,
+              stream_icon: item.posterUrl || '',
+              stream_type: 'movie',
+              container_extension: 'mp4',
+              rating: 0,
+              rating_5based: 0,
+              added: '',
+              category_id: '',
+              custom_sid: '',
+              direct_source: '',
+            };
+            handlePlayMovie(mov, item.progressSeconds);
+          }}
+          onOpenDetail={(item) => {
+            const mov = movies.find((m) => m.stream_id === item.streamId) || {
+              stream_id: item.streamId,
+              name: item.title,
+              stream_icon: item.posterUrl || '',
+              stream_type: 'movie',
+              container_extension: 'mp4',
+              rating: 0,
+              rating_5based: 0,
+              added: '',
+              category_id: '',
+              custom_sid: '',
+              direct_source: '',
+            };
+            handleOpenDetail(mov);
+          }}
+        />
+
+
         {loadingMovies ? (
           <div className="h-64 flex flex-col items-center justify-center text-slate-500">
             <Loader2 className="w-8 h-8 text-blue-500 animate-spin mb-2" />
@@ -687,20 +746,57 @@ export const MoviesView: React.FC<MoviesViewProps> = ({ session, searchQuery }) 
                     )}
 
                     {/* Actions */}
-                    <div className="pt-2 flex items-center gap-3">
-                      <button
-                        type="button"
-                        data-nav="true"
-                        onClick={() => {
-                          const mov = selectedMovie;
-                          setSelectedMovie(null);
-                          handlePlayMovie(mov);
-                        }}
-                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-500/25"
-                      >
-                        <Play className="w-4 h-4 fill-current" />
-                        <span>Reproducir</span>
-                      </button>
+                    <div className="pt-2 flex flex-wrap items-center gap-3">
+                      {movieProgress ? (
+                        <>
+                          <button
+                            type="button"
+                            data-nav="true"
+                            onClick={() => {
+                              const mov = selectedMovie;
+                              const time = movieProgress.progressSeconds;
+                              setSelectedMovie(null);
+                              handlePlayMovie(mov, time);
+                            }}
+                            className="flex items-center gap-2 bg-red-600 hover:bg-red-500 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-lg shadow-red-600/25"
+                          >
+                            <Play className="w-4 h-4 fill-current" />
+                            <span>
+                              Reanudar ({Math.floor(movieProgress.progressSeconds / 60)}:
+                              {String(Math.floor(movieProgress.progressSeconds % 60)).padStart(2, '0')})
+                            </span>
+                          </button>
+
+                          <button
+                            type="button"
+                            data-nav="true"
+                            onClick={() => {
+                              const mov = selectedMovie;
+                              setSelectedMovie(null);
+                              handlePlayMovie(mov, 0);
+                            }}
+                            className="flex items-center gap-1.5 bg-surfaceLight hover:bg-slate-700 text-slate-200 px-4 py-2.5 rounded-xl text-xs font-bold transition-all border border-surfaceLight"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>Desde el inicio</span>
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          data-nav="true"
+                          onClick={() => {
+                            const mov = selectedMovie;
+                            setSelectedMovie(null);
+                            handlePlayMovie(mov, 0);
+                          }}
+                          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-500/25"
+                        >
+                          <Play className="w-4 h-4 fill-current" />
+                          <span>Reproducir</span>
+                        </button>
+                      )}
+
 
                       <button
                         type="button"

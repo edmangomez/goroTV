@@ -105,6 +105,7 @@ export interface Episode {
   episode_num: number;
   title: string;
   container_extension: string;
+  season?: number;
   info: {
     plot?: string;
     duration?: string;
@@ -113,6 +114,7 @@ export interface Episode {
     rating?: number;
   };
 }
+
 
 export interface Season {
   air_date: string;
@@ -178,3 +180,22 @@ export interface SubtitleStyle {
   edgeStyle?: 'outline' | 'shadow' | 'none';
   position?: 'bottom' | 'middle';
 }
+
+// --- PROGRESO DE REPRODUCCIÓN (CONTINUAR VIENDO) ---
+export interface PlaybackProgress {
+  id?: number | string;
+  contentType: 'movie' | 'series';
+  streamId: number;
+  seriesId?: number;
+  seasonNum?: number;
+  episodeNum?: number;
+  episodeId?: number;
+  title: string;
+  subtitle?: string;
+  posterUrl?: string;
+  progressSeconds: number;
+  durationSeconds: number;
+  completed?: boolean;
+  updatedAt?: string | number;
+}
+

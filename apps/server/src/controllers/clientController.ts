@@ -422,3 +422,134 @@ export async function proxyXtreamApi(req: AuthenticatedClientRequest, res: Respo
   }
 }
 
+// --- CONTROLADORES DE PROGRESO DE REPRODUCCIÓN (CONTINUAR VIENDO ESTILO NETFLIX) ---
+
+export function getClientProgress(req: AuthenticatedClientRequest, res: Response): void {
+  const userId = req.clientUser!.id;
+  const contentType = req.query.type as string | undefined;
+
+  let query = `
+    SELECT id, content_type, stream_id, series_id, season_num, episode_num, episode_id,
+           title, subtitle, poster_url, progress_seconds, duration_seconds, completed, updated_at
+    FROM user_playback_progress
+    WHERE user_id = ? AND completed = 0
+  `;
+  const params: any[] = [userId];
+
+  if (contentType === 'movie' || contentType === 'series') {
+    query += ' AND content_type = ?';
+    params.push(contentType);
+  }
+
+  query += ' ORDER BY updated_at DESC LIMIT 30';
+
+  try {
+    const rows = db.prepare(query).all(...params) as any[];
+    const items = rows.map((r) => ({
+      id: r.id,
+      contentType: r.content_type,
+      streamId: r.stream_id,
+      seriesId: r.series_id,
+      seasonNum: r.season_num,
+      episodeNum: r.episode_num,
+      episodeId: r.episode_id,
+      title: r.title,
+      subtitle: r.subtitle,
+      posterUrl: r.poster_url,
+      progressSeconds: Number(r.progress_seconds),
+      durationSeconds: Number(r.duration_seconds),
+      completed: r.completed === 1,
+      updatedAt: r.updated_at,
+    }));
+    res.json(items);
+  } catch (err: any) {
+    console.error('[Progress] Error al consultar progreso:', err);
+    res.status(500).json({ error: 'DB_ERROR', message: err.message });
+  }
+}
+
+export function saveClientProgress(req: AuthenticatedClientRequest, res: Response): void {
+  const userId = req.clientUser!.id;
+  const {
+    contentType,
+    streamId,
+    seriesId,
+    seasonNum,
+    episodeNum,
+    episodeId,
+    title,
+    subtitle,
+    posterUrl,
+    progressSeconds,
+    durationSeconds,
+  } = req.body;
+
+  if (!contentType || !streamId || !title) {
+    res.status(400).json({ error: 'MISSING_FIELDS', message: 'Tipo, streamId y título son requeridos' });
+    return;
+  }
+
+  const prog = Math.max(0, Number(progressSeconds) || 0);
+  const dur = Math.max(0, Number(durationSeconds) || 0);
+
+  // Al superar el 90% (créditos) se marca como terminado
+  const isCompleted = dur > 0 && prog / dur >= 0.9 ? 1 : 0;
+
+  try {
+    db.prepare(`
+      INSERT INTO user_playback_progress (
+        user_id, content_type, stream_id, series_id, season_num, episode_num, episode_id,
+        title, subtitle, poster_url, progress_seconds, duration_seconds, completed, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      ON CONFLICT(user_id, content_type, stream_id) DO UPDATE SET
+        series_id = COALESCE(excluded.series_id, user_playback_progress.series_id),
+        season_num = COALESCE(excluded.season_num, user_playback_progress.season_num),
+        episode_num = COALESCE(excluded.episode_num, user_playback_progress.episode_num),
+        episode_id = COALESCE(excluded.episode_id, user_playback_progress.episode_id),
+        title = excluded.title,
+        subtitle = COALESCE(excluded.subtitle, user_playback_progress.subtitle),
+        poster_url = COALESCE(excluded.poster_url, user_playback_progress.poster_url),
+        progress_seconds = excluded.progress_seconds,
+        duration_seconds = excluded.duration_seconds,
+        completed = excluded.completed,
+        updated_at = datetime('now')
+    `).run(
+      userId,
+      contentType,
+      Number(streamId),
+      seriesId ? Number(seriesId) : null,
+      seasonNum ? Number(seasonNum) : null,
+      episodeNum ? Number(episodeNum) : null,
+      episodeId ? Number(episodeId) : null,
+      title,
+      subtitle || null,
+      posterUrl || null,
+      prog,
+      dur,
+      isCompleted
+    );
+
+    res.json({ success: true, completed: isCompleted === 1 });
+  } catch (err: any) {
+    console.error('[Progress] Error al guardar progreso:', err);
+    res.status(500).json({ error: 'DB_ERROR', message: err.message });
+  }
+}
+
+export function deleteClientProgress(req: AuthenticatedClientRequest, res: Response): void {
+  const userId = req.clientUser!.id;
+  const { contentType, streamId } = req.params;
+
+  try {
+    db.prepare(`
+      DELETE FROM user_playback_progress
+      WHERE user_id = ? AND content_type = ? AND stream_id = ?
+    `).run(userId, contentType, Number(streamId));
+
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('[Progress] Error al eliminar progreso:', err);
+    res.status(500).json({ error: 'DB_ERROR', message: err.message });
+  }
+}
+

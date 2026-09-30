@@ -9,6 +9,7 @@ import { TracksModal } from './TracksModal';
 import { formatLanguageName, formatAudioCodec, formatAudioChannels } from '../../utils/language';
 import { DualAudioFetchStreamLoader } from '../../services/tsAudioLoader';
 import { isFullscreenActive, toggleAppFullscreen, addFullscreenChangeListener } from '../../utils/fullscreen';
+import { progressApi } from '../../services/progressApi';
 
 // Instalar polyfills de Shaka para compatibilidad en navegadores y Smart TVs (Tizen, webOS, Android TV)
 if (typeof window !== 'undefined') {
@@ -32,6 +33,15 @@ interface VideoPlayerProps {
   autoPlay?: boolean;
   channels?: Channel[];
   onSelectChannel?: (channel: Channel) => void;
+  initialTime?: number;
+  contentType?: 'movie' | 'series';
+  streamId?: number;
+  seriesId?: number;
+  seasonNum?: number;
+  episodeNum?: number;
+  episodeId?: number;
+  posterUrl?: string;
+  onProgress?: (progressSeconds: number, durationSeconds: number) => void;
 }
 
 interface ShakaInternalAudioTrack {
@@ -58,9 +68,20 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   autoPlay = true,
   channels,
   onSelectChannel,
+  initialTime,
+  contentType,
+  streamId,
+  seriesId,
+  seasonNum,
+  episodeNum,
+  episodeId,
+  posterUrl,
+  onProgress,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const hasSeekedInitialRef = useRef(false);
+  const lastProgressReportRef = useRef<number>(0);
 
   // Instancias de reproductores activos
   const shakaPlayerRef = useRef<shaka.Player | null>(null);
@@ -842,7 +863,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             }
           });
 
-          await player.load(activeStreamUrl);
+          await player.load(activeStreamUrl, initialTime && initialTime > 0 ? initialTime : null);
           if (isCancelled) return;
           if (liveStallTimer) clearTimeout(liveStallTimer);
 
@@ -906,6 +927,36 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     updateShakaSubtitles,
   ]);
 
+  // Reiniciar estado de seek al cambiar de stream o initialTime
+  useEffect(() => {
+    hasSeekedInitialRef.current = false;
+  }, [streamUrl, initialTime]);
+
+  // Guardado de progreso centralizado (Netflix style)
+  const saveCurrentProgress = useCallback((force = false) => {
+    const video = videoRef.current;
+    if (!isLive && streamId && contentType && video && video.duration > 0 && video.currentTime > 3) {
+      progressApi.saveProgress({
+        contentType,
+        streamId,
+        seriesId,
+        seasonNum,
+        episodeNum,
+        episodeId,
+        title,
+        subtitle,
+        posterUrl,
+        progressSeconds: Math.floor(video.currentTime),
+        durationSeconds: Math.floor(video.duration),
+      }, force);
+    }
+  }, [isLive, streamId, contentType, seriesId, seasonNum, episodeNum, episodeId, title, subtitle, posterUrl]);
+
+  const handleBack = useCallback(() => {
+    saveCurrentProgress(true);
+    onBack();
+  }, [saveCurrentProgress, onBack]);
+
   // Sincronizar eventos de reproducción del elemento <video>
   useEffect(() => {
     const video = videoRef.current;
@@ -916,12 +967,44 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       video.volume = volume;
       video.muted = isMuted;
     };
-    const onPause = () => setIsPlaying(false);
-    const onTimeUpdate = () => setCurrentTime(video.currentTime);
+    const onPause = () => {
+      setIsPlaying(false);
+      saveCurrentProgress(true);
+    };
+    const onTimeUpdate = () => {
+      setCurrentTime(video.currentTime);
+      const now = Date.now();
+      if (!isLive && streamId && contentType && video.duration > 0) {
+        if (now - lastProgressReportRef.current >= 5000) {
+          lastProgressReportRef.current = now;
+          saveCurrentProgress(false);
+          onProgress?.(video.currentTime, video.duration);
+        }
+      }
+    };
     const onLoadedMetadata = () => {
       setDuration(video.duration || 0);
       video.volume = volume;
       video.muted = isMuted;
+      if (!hasSeekedInitialRef.current && initialTime && initialTime > 0) {
+        try {
+          video.currentTime = Math.min(initialTime, video.duration || initialTime);
+          hasSeekedInitialRef.current = true;
+        } catch (e) {
+          console.warn('[VideoPlayer] Error al aplicar initialTime en loadedmetadata:', e);
+        }
+      }
+    };
+    const onCanPlay = () => {
+      setLoading(false);
+      if (!hasSeekedInitialRef.current && initialTime && initialTime > 0) {
+        try {
+          video.currentTime = Math.min(initialTime, video.duration || initialTime);
+          hasSeekedInitialRef.current = true;
+        } catch (e) {
+          // ignore
+        }
+      }
     };
     const onWaiting = () => setLoading(true);
     const onPlaying = () => setLoading(false);
@@ -930,18 +1013,22 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     video.addEventListener('pause', onPause);
     video.addEventListener('timeupdate', onTimeUpdate);
     video.addEventListener('loadedmetadata', onLoadedMetadata);
+    video.addEventListener('canplay', onCanPlay);
     video.addEventListener('waiting', onWaiting);
     video.addEventListener('playing', onPlaying);
 
     return () => {
+      saveCurrentProgress(true);
       video.removeEventListener('play', onPlay);
       video.removeEventListener('pause', onPause);
       video.removeEventListener('timeupdate', onTimeUpdate);
       video.removeEventListener('loadedmetadata', onLoadedMetadata);
+      video.removeEventListener('canplay', onCanPlay);
       video.removeEventListener('waiting', onWaiting);
       video.removeEventListener('playing', onPlaying);
     };
-  }, [volume, isMuted]);
+  }, [volume, isMuted, saveCurrentProgress, initialTime, isLive, streamId, contentType, onProgress]);
+
 
   // Sincronizar reactivamente el volumen cuando cambia o cuando se carga una nueva URL
   useEffect(() => {
@@ -952,8 +1039,22 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
   }, [volume, isMuted, activeStreamUrl]);
 
-  // Manejo de pantalla completa universal (prioriza el contenedor del reproductor con fallback a documentElement)
+  // Manejo de pantalla completa universal (con soporte especial nativo para iPhone / iOS Safari)
   const toggleFullscreen = useCallback(async () => {
+    const vid = videoRef.current;
+    const isIos = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+    // En iPhone / iOS Safari, invocar el reproductor nativo directamente en el elemento <video>
+    if (vid && typeof (vid as any).webkitEnterFullscreen === 'function' && isIos) {
+      try {
+        (vid as any).webkitEnterFullscreen();
+        setIsFullscreen(true);
+        return;
+      } catch (err) {
+        console.warn('[Player] webkitEnterFullscreen falló, conmutando a fallback:', err);
+      }
+    }
+
     const targetEl = containerRef.current || document.documentElement;
     const newState = await toggleAppFullscreen(targetEl);
     setIsFullscreen(newState);
@@ -964,7 +1065,24 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     const cleanup = addFullscreenChangeListener((active) => {
       setIsFullscreen(active);
     });
-    return cleanup;
+
+    // Sincronizar eventos nativos de pantalla completa en iOS Safari
+    const vid = videoRef.current;
+    const onIosEnter = () => setIsFullscreen(true);
+    const onIosExit = () => setIsFullscreen(false);
+
+    if (vid) {
+      vid.addEventListener('webkitbeginfullscreen', onIosEnter);
+      vid.addEventListener('webkitendfullscreen', onIosExit);
+    }
+
+    return () => {
+      cleanup();
+      if (vid) {
+        vid.removeEventListener('webkitbeginfullscreen', onIosEnter);
+        vid.removeEventListener('webkitendfullscreen', onIosExit);
+      }
+    };
   }, []);
 
   // Acciones de reproducción
@@ -1285,9 +1403,10 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             e.preventDefault();
             setTracksModalOpen(false);
           } else {
-            onBack();
+            handleBack();
           }
           break;
+
       }
     };
 
@@ -1480,7 +1599,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
               <span>Reintentar</span>
             </button>
             <button
-              onClick={onBack}
+              onClick={handleBack}
               className="px-5 py-2.5 rounded-xl bg-surfaceLight hover:bg-slate-700 text-white text-xs font-bold transition-all"
             >
               Volver
@@ -1579,7 +1698,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         isPlaying={isPlaying}
         onTogglePlay={togglePlay}
         onSeek={handleSeek}
-        onBack={onBack}
+        onBack={handleBack}
+
         isLive={isLive}
         currentTime={currentTime}
         duration={duration}

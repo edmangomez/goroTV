@@ -9,6 +9,8 @@ build/
 *.wgt
 *.ipk
 *.apk
+*.tsbuildinfo
+
 
 # Environment variables
 .env
@@ -40,7 +42,9 @@ Thumbs.db
 *.sw?
 
 # Scratch & test scripts
+scratch/
 scratch_*.js
 sample_*.ts
 test_suite.cjs
+
 

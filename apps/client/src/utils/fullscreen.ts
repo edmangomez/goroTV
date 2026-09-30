@@ -83,12 +83,38 @@ export async function requestAppFullscreen(preferredElement?: HTMLElement | null
   const doc = document as any;
   const root = document.documentElement as any;
 
-  // 1. Soporte especial para iOS Safari (reproductor de video nativo)
-  if (preferredElement && typeof (preferredElement as any).webkitEnterFullscreen === 'function') {
+  // 1. Soporte especial para iOS Safari (iPhone / WebKit)
+  // En iPhone, la API estándar requestFullscreen() no existe en elementos DOM (div, root).
+  // Los elementos <video> soportan webkitEnterFullscreen() para pantalla completa nativa.
+  let videoEl: any = null;
+  if (preferredElement) {
+    if (typeof (preferredElement as any).webkitEnterFullscreen === 'function') {
+      videoEl = preferredElement;
+    } else if (typeof (preferredElement as any).querySelector === 'function') {
+      videoEl = (preferredElement as any).querySelector('video');
+    }
+  }
+  if (!videoEl && typeof doc.querySelector === 'function') {
+    videoEl = doc.querySelector('video');
+  }
+
+  const hasStandardFullscreen = !!(
+    doc.fullscreenEnabled ||
+    doc.webkitFullscreenEnabled ||
+    root.requestFullscreen ||
+    root.webkitRequestFullscreen
+  );
+
+  // Si estamos en un dispositivo iOS sin API Fullscreen estándar, invocar el reproductor nativo de iOS
+  if (videoEl && typeof videoEl.webkitEnterFullscreen === 'function' && !hasStandardFullscreen) {
     try {
-      (preferredElement as any).webkitEnterFullscreen();
+      videoEl.webkitEnterFullscreen();
+      isWebFullscreenActive = false;
+      notifyChangeListeners(true);
       return true;
-    } catch {}
+    } catch (e) {
+      console.warn('[Fullscreen] Excepción en webkitEnterFullscreen:', e);
+    }
   }
 
   // 2. Determinar elemento destino (el contenedor específico o la raíz)

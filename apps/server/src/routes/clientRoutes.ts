@@ -7,6 +7,9 @@ import {
   searchSubtitles,
   downloadSubtitle,
   proxyXtreamApi,
+  getClientProgress,
+  saveClientProgress,
+  deleteClientProgress,
 } from '../controllers/clientController.js';
 import { requireClient } from '../middleware/clientMiddleware.js';
 
@@ -26,5 +29,10 @@ clientRouter.delete('/session', requireClient, clientCloseSession);
 
 // Proxy transparente para metadatos de Xtream Codes (evita Mixed Content HTTPS)
 clientRouter.get('/xtream', requireClient, proxyXtreamApi);
+
+// Progreso de reproducción estilo Netflix ("Continuar viendo")
+clientRouter.get('/progress', requireClient, getClientProgress);
+clientRouter.post('/progress', requireClient, saveClientProgress);
+clientRouter.delete('/progress/:contentType/:streamId', requireClient, deleteClientProgress);
 
 

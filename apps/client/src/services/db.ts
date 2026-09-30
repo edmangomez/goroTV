@@ -29,10 +29,28 @@ export interface HistoryItem {
   updatedAt: number;
 }
 
+export interface PlaybackProgressItem {
+  id: string; // `${contentType}_${streamId}`
+  contentType: 'movie' | 'series';
+  streamId: number;
+  seriesId?: number;
+  seasonNum?: number;
+  episodeNum?: number;
+  episodeId?: number;
+  title: string;
+  subtitle?: string;
+  posterUrl?: string;
+  progressSeconds: number;
+  durationSeconds: number;
+  completed: boolean;
+  updatedAt: number;
+}
+
 const db = new Dexie('goroTV_ClientDB') as Dexie & {
   favorites: EntityTable<FavoriteItem, 'id'>;
   history: EntityTable<HistoryItem, 'id'>;
   favorite_categories: EntityTable<FavoriteCategoryItem, 'id'>;
+  playback_progress: EntityTable<PlaybackProgressItem, 'id'>;
 };
 
 db.version(1).stores({
@@ -43,6 +61,11 @@ db.version(1).stores({
 db.version(2).stores({
   favorite_categories: 'id, type, categoryId, addedAt',
 });
+
+db.version(3).stores({
+  playback_progress: 'id, contentType, streamId, completed, updatedAt',
+});
+
 
 export const localDB = {
   async addFavorite(item: Omit<FavoriteItem, 'addedAt'>) {
@@ -99,4 +122,33 @@ export const localDB = {
   async getHistory(): Promise<HistoryItem[]> {
     return db.history.orderBy('updatedAt').reverse().limit(50).toArray();
   },
+
+  // --- CONTINUAR VIENDO (PROGRESS) ---
+  async savePlaybackProgress(item: Omit<PlaybackProgressItem, 'id' | 'updatedAt'> & { updatedAt?: number }) {
+    const id = `${item.contentType}_${item.streamId}`;
+    await db.playback_progress.put({
+      ...item,
+      id,
+      updatedAt: item.updatedAt || Date.now(),
+    });
+  },
+
+  async getPlaybackProgress(contentType?: 'movie' | 'series'): Promise<PlaybackProgressItem[]> {
+    let collection = db.playback_progress.filter((item) => !item.completed);
+    if (contentType) {
+      collection = collection.filter((item) => item.contentType === contentType);
+    }
+    const items = await collection.toArray();
+    return items.sort((a, b) => b.updatedAt - a.updatedAt);
+  },
+
+  async deletePlaybackProgress(contentType: 'movie' | 'series', streamId: number) {
+    const id = `${contentType}_${streamId}`;
+    await db.playback_progress.delete(id);
+  },
+
+  async clearPlaybackProgress() {
+    await db.playback_progress.clear();
+  },
 };
+

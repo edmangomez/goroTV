@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Clapperboard, Star, Play, X, Calendar, Layers, Loader2, Search } from 'lucide-react';
-import { Category, Series, SeriesDetailInfo, Episode, ClientSession } from '../types';
+import { Clapperboard, Star, Play, X, Calendar, Layers, Loader2, Search, RotateCcw } from 'lucide-react';
+import { Category, Series, SeriesDetailInfo, Episode, ClientSession, PlaybackProgress } from '../types';
 import { XtreamApiClient } from '../services/xtreamApi';
 import { FavoriteCategoryItem, localDB } from '../services/db';
 import { VideoPlayer } from '../components/player/VideoPlayer';
+import { ContinueWatchingRow } from '../components/vod/ContinueWatchingRow';
+import { progressApi } from '../services/progressApi';
 
 interface SeriesViewProps {
   session: ClientSession;
@@ -26,6 +28,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({ session, searchQuery }) 
   const [seriesDetail, setSeriesDetail] = useState<SeriesDetailInfo | null>(null);
   const [selectedSeason, setSelectedSeason] = useState<string>('1');
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [seriesProgressList, setSeriesProgressList] = useState<PlaybackProgress[]>([]);
 
   // Reproductor
   const [playingEpisode, setPlayingEpisode] = useState<{
@@ -33,12 +36,19 @@ export const SeriesView: React.FC<SeriesViewProps> = ({ session, searchQuery }) 
     episodeTitle: string;
     url: string;
     fallbackUrls?: string[];
+    initialTime?: number;
+    seriesId?: number;
+    episodeId?: number;
+    seasonNum?: number;
+    episodeNum?: number;
+    posterUrl?: string;
   } | null>(null);
 
   const [favorites, setFavorites] = useState<{ [id: number]: boolean }>({});
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const xtream = new XtreamApiClient(session.provider);
+
 
   // Cargar categorías, favoritos y categorías favoritas iniciales
   useEffect(() => {
@@ -179,8 +189,12 @@ export const SeriesView: React.FC<SeriesViewProps> = ({ session, searchQuery }) 
     setSelectedSeries(series);
     setLoadingDetail(true);
     try {
-      const info = await xtream.getSeriesInfo(series.series_id);
+      const [info, progressList] = await Promise.all([
+        xtream.getSeriesInfo(series.series_id),
+        progressApi.getProgress('series'),
+      ]);
       setSeriesDetail(info);
+      setSeriesProgressList(progressList);
       const firstSeason = info.seasons?.[0]?.season_number ? String(info.seasons[0].season_number) : '1';
       setSelectedSeason(firstSeason);
     } catch (err) {
@@ -190,14 +204,56 @@ export const SeriesView: React.FC<SeriesViewProps> = ({ session, searchQuery }) 
     }
   };
 
-  const handlePlayEpisode = (series: Series, ep: Episode) => {
+  const handlePlayEpisode = (series: Series, ep: Episode, initialTime = 0) => {
     const ext = ep.container_extension || 'mp4';
     const directUrl = xtream.getSeriesStreamUrl(Number(ep.id), ext);
+    const seasonNumber = Number(ep.season || selectedSeason);
     setPlayingEpisode({
       seriesTitle: series.name,
-      episodeTitle: `T${selectedSeason}:E${ep.episode_num} - ${ep.title}`,
+      episodeTitle: `T${seasonNumber}:E${ep.episode_num} - ${ep.title}`,
       url: directUrl,
+      initialTime,
+      seriesId: Number(series.series_id),
+      episodeId: Number(ep.id),
+      seasonNum: seasonNumber,
+      episodeNum: Number(ep.episode_num),
+      posterUrl: ep.info?.movie_image || series.cover,
     });
+  };
+
+  // Continuidad inteligente de series: al completar (>90%) un episodio, avanzar al siguiente
+  const handleEpisodeCompleted = async (seriesId: number, seasonNum: number, currentEpNum: number) => {
+    try {
+      const episodesCurrentSeason = seriesDetail?.episodes?.[String(seasonNum)] || [];
+      let nextEp = episodesCurrentSeason.find((e) => Number(e.episode_num) === currentEpNum + 1);
+      let nextSeasonNum = seasonNum;
+
+      if (!nextEp && seriesDetail?.episodes) {
+        nextSeasonNum = seasonNum + 1;
+        const nextSeasonEpisodes = seriesDetail.episodes[String(nextSeasonNum)] || [];
+        if (nextSeasonEpisodes.length > 0) {
+          nextEp = nextSeasonEpisodes[0];
+        }
+      }
+
+      if (nextEp && selectedSeries) {
+        await progressApi.saveProgress({
+          contentType: 'series',
+          streamId: Number(nextEp.id),
+          seriesId: Number(seriesId),
+          seasonNum: nextSeasonNum,
+          episodeNum: Number(nextEp.episode_num),
+          episodeId: Number(nextEp.id),
+          title: selectedSeries.name,
+          subtitle: `T${nextSeasonNum}:E${nextEp.episode_num} - ${nextEp.title}`,
+          posterUrl: nextEp.info?.movie_image || selectedSeries.cover,
+          progressSeconds: 0,
+          durationSeconds: 1,
+        }, true);
+      }
+    } catch (err) {
+      console.warn('[SeriesView] Error al auto-avanzar episodio:', err);
+    }
   };
 
   const toggleFavorite = async (series: Series) => {
@@ -227,15 +283,37 @@ export const SeriesView: React.FC<SeriesViewProps> = ({ session, searchQuery }) 
         <VideoPlayer
           key={`episode-${playingEpisode.url}`}
           streamUrl={playingEpisode.url}
+          fallbackUrls={playingEpisode.fallbackUrls}
           title={playingEpisode.seriesTitle}
           subtitle={playingEpisode.episodeTitle}
           categoryName="Serie"
           isLive={false}
-          onBack={() => setPlayingEpisode(null)}
+          onBack={() => {
+            setPlayingEpisode(null);
+            progressApi.getProgress('series').then(setSeriesProgressList).catch(() => {});
+          }}
+          initialTime={playingEpisode.initialTime}
+          contentType="series"
+          streamId={playingEpisode.episodeId}
+          seriesId={playingEpisode.seriesId}
+          seasonNum={playingEpisode.seasonNum}
+          episodeNum={playingEpisode.episodeNum}
+          episodeId={playingEpisode.episodeId}
+          posterUrl={playingEpisode.posterUrl}
+          onProgress={(progSec, durSec) => {
+            if (durSec > 0 && progSec / durSec >= 0.9 && playingEpisode.seriesId) {
+              handleEpisodeCompleted(
+                playingEpisode.seriesId,
+                playingEpisode.seasonNum || 1,
+                playingEpisode.episodeNum || 1
+              );
+            }
+          }}
         />
       </div>
     );
   }
+
 
   const currentEpisodes: Episode[] =
     seriesDetail && seriesDetail.episodes ? seriesDetail.episodes[selectedSeason] || [] : [];
@@ -547,6 +625,47 @@ export const SeriesView: React.FC<SeriesViewProps> = ({ session, searchQuery }) 
         className="flex-1 p-4 sm:p-6 overflow-y-auto h-full focus:outline-none"
         onScroll={handleScroll}
       >
+        {/* Continuar Viendo Carrusel estilo Netflix */}
+        <ContinueWatchingRow
+          contentType="series"
+          onPlayItem={(item) => {
+            const ext = 'mp4';
+            const directUrl = xtream.getSeriesStreamUrl(item.streamId, ext);
+            setPlayingEpisode({
+              seriesTitle: item.title,
+              episodeTitle: item.subtitle || 'Episodio',
+              url: directUrl,
+              initialTime: item.progressSeconds,
+              seriesId: item.seriesId,
+              episodeId: item.streamId,
+              seasonNum: item.seasonNum,
+              episodeNum: item.episodeNum,
+              posterUrl: item.posterUrl,
+            });
+          }}
+          onOpenDetail={(item) => {
+            if (item.seriesId) {
+              const ser = seriesList.find((s) => s.series_id === item.seriesId) || {
+                series_id: item.seriesId,
+                name: item.title,
+                cover: item.posterUrl || '',
+                category_id: '',
+                rating: 0,
+                rating_5based: 0,
+                backdrop_path: [],
+                plot: '',
+                cast: '',
+                director: '',
+                genre: '',
+                releaseDate: '',
+                last_modified: '',
+              };
+              handleOpenDetail(ser);
+
+            }
+          }}
+        />
+
         {loadingSeries ? (
           <div className="h-64 flex flex-col items-center justify-center text-slate-500">
             <Loader2 className="w-8 h-8 text-blue-500 animate-spin mb-2" />
@@ -744,40 +863,98 @@ export const SeriesView: React.FC<SeriesViewProps> = ({ session, searchQuery }) 
                         No hay episodios disponibles para esta temporada.
                       </div>
                     ) : (
-                      currentEpisodes.map((ep) => (
-                        <div
-                          key={ep.id}
-                          data-nav="true"
-                          tabIndex={0}
-                          onClick={() => handlePlayEpisode(selectedSeries, ep)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handlePlayEpisode(selectedSeries, ep);
-                          }}
-                          className="flex items-center justify-between p-3.5 rounded-2xl bg-background border border-surfaceLight hover:border-blue-500/80 cursor-pointer transition-all group focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          <div className="flex items-center gap-3 overflow-hidden">
-                            <div className="w-8 h-8 rounded-xl bg-blue-600/10 text-blue-400 border border-blue-500/20 flex items-center justify-center font-bold text-xs flex-shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                              {ep.episode_num}
-                            </div>
-                            <div className="overflow-hidden">
-                              <h5 className="text-xs sm:text-sm font-bold text-white truncate">
-                                {ep.title || `Episodio ${ep.episode_num}`}
-                              </h5>
-                              {ep.info?.duration && (
-                                <span className="text-[11px] text-slate-400">{ep.info.duration}</span>
-                              )}
-                            </div>
-                          </div>
+                      currentEpisodes.map((ep) => {
+                        const epProg = seriesProgressList.find(
+                          (p) => p.streamId === Number(ep.id) && !p.completed && p.progressSeconds >= 10
+                        );
+                        const percent =
+                          epProg && epProg.durationSeconds > 0
+                            ? Math.min(100, Math.round((epProg.progressSeconds / epProg.durationSeconds) * 100))
+                            : 0;
 
-                          <button
-                            type="button"
-                            className="p-2 rounded-xl bg-blue-600/20 text-blue-400 group-hover:bg-blue-600 group-hover:text-white transition-all flex-shrink-0"
-                            title="Reproducir episodio"
+                        return (
+                          <div
+                            key={ep.id}
+                            data-nav="true"
+                            tabIndex={0}
+                            onClick={() => handlePlayEpisode(selectedSeries, ep, epProg ? epProg.progressSeconds : 0)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handlePlayEpisode(selectedSeries, ep, epProg ? epProg.progressSeconds : 0);
+                            }}
+                            className="relative flex flex-col p-3.5 rounded-2xl bg-background border border-surfaceLight hover:border-blue-500/80 cursor-pointer transition-all group focus:outline-none focus:ring-2 focus:ring-blue-500 overflow-hidden"
                           >
-                            <Play className="w-4 h-4 fill-current ml-0.5" />
-                          </button>
-                        </div>
-                      ))
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-3 overflow-hidden">
+                                <div
+                                  className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs flex-shrink-0 transition-colors ${
+                                    epProg
+                                      ? 'bg-red-600/20 text-red-400 border border-red-500/30 group-hover:bg-red-600 group-hover:text-white'
+                                      : 'bg-blue-600/10 text-blue-400 border border-blue-500/20 group-hover:bg-blue-600 group-hover:text-white'
+                                  }`}
+                                >
+                                  {ep.episode_num}
+                                </div>
+                                <div className="overflow-hidden">
+                                  <h5 className="text-xs sm:text-sm font-bold text-white truncate">
+                                    {ep.title || `Episodio ${ep.episode_num}`}
+                                  </h5>
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    {ep.info?.duration && (
+                                      <span className="text-[11px] text-slate-400">{ep.info.duration}</span>
+                                    )}
+                                    {epProg && (
+                                      <span className="text-[10px] text-red-400 font-semibold">
+                                        Reanudar ({Math.floor(epProg.progressSeconds / 60)}:
+                                        {String(Math.floor(epProg.progressSeconds % 60)).padStart(2, '0')})
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                {epProg && (
+                                  <button
+                                    type="button"
+                                    data-nav="true"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handlePlayEpisode(selectedSeries, ep, 0);
+                                    }}
+                                    className="p-1.5 rounded-xl bg-surfaceLight hover:bg-slate-700 text-slate-300 hover:text-white transition-all text-[11px] flex items-center gap-1"
+                                    title="Ver desde el inicio"
+                                  >
+                                    <RotateCcw className="w-3.5 h-3.5" />
+                                    <span className="hidden sm:inline">Inicio</span>
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  className={`p-2 rounded-xl transition-all flex-shrink-0 ${
+                                    epProg
+                                      ? 'bg-red-600 text-white shadow-md shadow-red-600/30'
+                                      : 'bg-blue-600/20 text-blue-400 group-hover:bg-blue-600 group-hover:text-white'
+                                  }`}
+                                  title={epProg ? 'Reanudar episodio' : 'Reproducir episodio'}
+                                >
+                                  <Play className="w-4 h-4 fill-current ml-0.5" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Barra de progreso de episodio si existe */}
+                            {epProg && (
+                              <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/50">
+                                <div
+                                  className="h-full bg-red-600 transition-all duration-300"
+                                  style={{ width: `${percent}%` }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+
                     )}
                   </div>
                 </div>
