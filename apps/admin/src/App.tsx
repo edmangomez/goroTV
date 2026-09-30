@@ -17,8 +17,8 @@ export const App: React.FC = () => {
     const saved = localStorage.getItem('gorotv_admin_user');
     return saved ? JSON.parse(saved) : null;
   });
-  const [loginUser, setLoginUser] = useState('admin');
-  const [loginPass, setLoginPass] = useState('admin1234');
+  const [loginUser, setLoginUser] = useState('');
+  const [loginPass, setLoginPass] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
