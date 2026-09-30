@@ -97,6 +97,45 @@ export const App: React.FC = () => {
     }
   }, [session]);
 
+  // Sincronizar estado del usuario y proveedor desde el servidor al iniciar
+  useEffect(() => {
+    if (!session || session.mode !== 'service' || !session.token) return;
+
+    let isMounted = true;
+    authApi
+      .getStatus(session.token)
+      .then((status) => {
+        if (!isMounted) return;
+        setSession((prev) => {
+          if (!prev) return null;
+          const updated: ClientSession = {
+            ...prev,
+            serviceUser: {
+              id: status.id,
+              username: status.username,
+              displayName: status.displayName,
+              expiresAt: status.expiresAt,
+              daysRemaining: status.daysRemaining,
+              maxConnections: status.maxConnections,
+            },
+            provider: status.provider,
+          };
+          localStorage.setItem('gorotv_client_session', JSON.stringify(updated));
+          return updated;
+        });
+      })
+      .catch((err) => {
+        console.warn('[Session] Error de sincronización inicial:', err);
+        if (err.code === 'ACCOUNT_EXPIRED' || err.code === 'ACCOUNT_SUSPENDED' || err.code === 'FORBIDDEN') {
+          handleLogout();
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   useEffect(() => {
     if (session && session.mode === 'service' && session.token) {
       sendHeartbeatPing();

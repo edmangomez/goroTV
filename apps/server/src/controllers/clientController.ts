@@ -379,3 +379,46 @@ export async function downloadSubtitle(req: Request, res: Response): Promise<voi
   }
 }
 
+// Proxy transparente para APIs de metadatos de Xtream Codes (evita Mixed Content en HTTPS)
+export async function proxyXtreamApi(req: AuthenticatedClientRequest, res: Response): Promise<void> {
+  const userId = req.clientUser!.id;
+  const stmt = db.prepare(`
+    SELECT p.host, p.username, p.password
+    FROM users u
+    JOIN providers p ON u.provider_id = p.id
+    WHERE u.id = ?
+  `);
+  const provider = stmt.get(userId) as any;
+  if (!provider) {
+    res.status(404).json({ error: 'PROVIDER_NOT_FOUND', message: 'Proveedor no encontrado' });
+    return;
+  }
+
+  const decPassword = decryptText(provider.password);
+
+  const queryParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(req.query)) {
+    if (typeof value === 'string') {
+      queryParams.set(key, value);
+    }
+  }
+
+  queryParams.set('username', provider.username);
+  queryParams.set('password', decPassword);
+
+  const targetUrl = `${provider.host}/player_api.php?${queryParams.toString()}`;
+
+  try {
+    const upstreamRes = await fetch(targetUrl, { signal: AbortSignal.timeout(15000) });
+    if (!upstreamRes.ok) {
+      res.status(upstreamRes.status).json({ error: 'UPSTREAM_ERROR' });
+      return;
+    }
+    const data = await upstreamRes.json();
+    res.json(data);
+  } catch (err: any) {
+    console.error('[XtreamProxy] Error al consultar proveedor:', err.message);
+    res.status(502).json({ error: 'GATEWAY_ERROR', message: err.message });
+  }
+}
+

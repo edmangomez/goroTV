@@ -6,6 +6,7 @@ import {
   clientCloseSession,
   searchSubtitles,
   downloadSubtitle,
+  proxyXtreamApi,
 } from '../controllers/clientController.js';
 import { requireClient } from '../middleware/clientMiddleware.js';
 
@@ -22,4 +23,8 @@ clientRouter.get('/subtitles/download', downloadSubtitle);
 clientRouter.get('/status', requireClient, getClientStatus);
 clientRouter.post('/heartbeat', requireClient, clientHeartbeat);
 clientRouter.delete('/session', requireClient, clientCloseSession);
+
+// Proxy transparente para metadatos de Xtream Codes (evita Mixed Content HTTPS)
+clientRouter.get('/xtream', requireClient, proxyXtreamApi);
+
 
