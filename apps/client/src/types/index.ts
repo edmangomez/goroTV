@@ -170,6 +170,8 @@ export interface MediaTrack {
   label?: string;
   role?: string;
   url?: string;
+  cues?: Array<{ start: number; end: number; text: string }>;
+  rawVttText?: string;
 }
 
 export interface SubtitleStyle {

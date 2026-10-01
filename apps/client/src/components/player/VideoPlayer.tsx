@@ -7,6 +7,7 @@ import { MediaTrack, SubtitleStyle, Channel } from '../../types';
 import { PlayerOSD } from './PlayerOSD';
 import { TracksModal } from './TracksModal';
 import { formatLanguageName, formatAudioCodec, formatAudioChannels } from '../../utils/language';
+import { parseVttToCues, SubtitleCueItem } from '../../utils/subtitles';
 import { DualAudioFetchStreamLoader } from '../../services/tsAudioLoader';
 import { isFullscreenActive, toggleAppFullscreen, addFullscreenChangeListener } from '../../utils/fullscreen';
 import { progressApi } from '../../services/progressApi';
@@ -109,6 +110,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [subtitleTracks, setSubtitleTracks] = useState<MediaTrack[]>([]);
   const [selectedAudioId, setSelectedAudioId] = useState<number | string>(0);
   const [selectedSubtitleId, setSelectedSubtitleId] = useState<number | string | -1>(-1);
+  const [activeSubtitleText, setActiveSubtitleText] = useState<string>('');
+  const activeCustomCuesRef = useRef<SubtitleCueItem[]>([]);
+  const activeNativeTrackRef = useRef<TextTrack | null>(null);
   const [tracksModalOpen, setTracksModalOpen] = useState(false);
   const [tracksInitialTab, setTracksInitialTab] = useState<'audio' | 'subtitles' | 'online'>('audio');
 
@@ -391,6 +395,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
     currentEngineRef.current = null;
     cachedShakaAudioTracksRef.current = [];
+    activeCustomCuesRef.current = [];
+    activeNativeTrackRef.current = null;
+    setActiveSubtitleText('');
   }, []);
 
   // Ciclo principal de inicialización y fallback
@@ -404,6 +411,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     setAudioTracks([]);
     setSubtitleTracks([]);
     setSelectedSubtitleId(-1);
+    setActiveSubtitleText('');
+    activeCustomCuesRef.current = [];
+    activeNativeTrackRef.current = null;
 
     // Intentar saltar a la siguiente URL de fallbackUrls
     const tryNextFallbackUrl = (reason: string): boolean => {
@@ -456,14 +466,25 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
         // Subtítulos nativos
         if (v.textTracks && v.textTracks.length > 0) {
-          const subs: MediaTrack[] = Array.from(v.textTracks).map((t, idx) => ({
-            id: idx,
-            name: formatLanguageName(t.language, t.label) || `Subtítulo ${idx + 1}`,
-            lang: t.language,
-            type: 'subtitle',
-            active: t.mode === 'showing',
-          }));
-          setSubtitleTracks(subs);
+          const subs: MediaTrack[] = Array.from(v.textTracks).map((t, idx) => {
+            const friendly = formatLanguageName(t.language, t.label);
+            const finalName = friendly && friendly !== 'Original'
+              ? friendly
+              : (t.label || `Subtítulo ${idx + 1}`);
+            return {
+              id: idx,
+              name: finalName,
+              lang: t.language,
+              type: 'subtitle' as const,
+              active: t.mode === 'showing' || t.mode === 'hidden',
+            };
+          });
+          setSubtitleTracks((prev) => {
+            const customSubs = prev.filter(
+              (p) => String(p.id).startsWith('online_') || String(p.id).startsWith('custom_')
+            );
+            return [...subs, ...customSubs];
+          });
         }
 
         // Pistas de audio nativas (HTMLMediaElement.audioTracks en navegadores compatibles)
@@ -972,13 +993,33 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       saveCurrentProgress(true);
     };
     const onTimeUpdate = () => {
-      setCurrentTime(video.currentTime);
+      const vTime = video.currentTime;
+      setCurrentTime(vTime);
+
+      // Sincronización continua de subtítulos en pantalla (Overlay universal)
+      if (activeCustomCuesRef.current.length > 0) {
+        const match = activeCustomCuesRef.current.find((c) => vTime >= c.start && vTime <= c.end);
+        const txt = match ? match.text : '';
+        setActiveSubtitleText((prev) => (prev !== txt ? txt : prev));
+      } else if (activeNativeTrackRef.current) {
+        const tt = activeNativeTrackRef.current;
+        if (tt.activeCues && tt.activeCues.length > 0) {
+          const txt = Array.from(tt.activeCues)
+            .map((c: any) => c.text || '')
+            .filter(Boolean)
+            .join('\n');
+          setActiveSubtitleText((prev) => (prev !== txt ? txt : prev));
+        } else {
+          setActiveSubtitleText((prev) => (prev !== '' ? '' : prev));
+        }
+      }
+
       const now = Date.now();
       if (!isLive && streamId && contentType && video.duration > 0) {
         if (now - lastProgressReportRef.current >= 5000) {
           lastProgressReportRef.current = now;
           saveCurrentProgress(false);
-          onProgress?.(video.currentTime, video.duration);
+          onProgress?.(vTime, video.duration);
         }
       }
     };
@@ -1012,6 +1053,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     video.addEventListener('play', onPlay);
     video.addEventListener('pause', onPause);
     video.addEventListener('timeupdate', onTimeUpdate);
+    video.addEventListener('seeked', onTimeUpdate);
     video.addEventListener('loadedmetadata', onLoadedMetadata);
     video.addEventListener('canplay', onCanPlay);
     video.addEventListener('waiting', onWaiting);
@@ -1022,6 +1064,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       video.removeEventListener('play', onPlay);
       video.removeEventListener('pause', onPause);
       video.removeEventListener('timeupdate', onTimeUpdate);
+      video.removeEventListener('seeked', onTimeUpdate);
       video.removeEventListener('loadedmetadata', onLoadedMetadata);
       video.removeEventListener('canplay', onCanPlay);
       video.removeEventListener('waiting', onWaiting);
@@ -1104,44 +1147,47 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     showOSD();
   };
 
-  // Cargar y adjuntar subtítulo externo local (.srt / .vtt)
+  // Cargar y registrar subtítulo externo / online (.srt / .vtt)
   const handleLoadCustomSubtitle = async (track: MediaTrack) => {
-    setSubtitleTracks((prev) => [...prev.filter((t) => t.id !== track.id), track]);
-    setSelectedSubtitleId(track.id);
-
-    const video = videoRef.current;
-    const trackUrl = (track as any).url;
-
-    if (currentEngineRef.current === 'shaka' && shakaPlayerRef.current && trackUrl) {
+    // Si ya trae cues parseadas
+    if (track.cues && track.cues.length > 0) {
+      activeCustomCuesRef.current = track.cues;
+    } else if (track.url) {
       try {
-        await shakaPlayerRef.current.addTextTrackAsync(
-          trackUrl,
-          track.lang || 'es',
-          'subtitles',
-          'text/vtt'
-        );
-        shakaPlayerRef.current.setTextTrackVisibility(true);
-        updateShakaSubtitles(shakaPlayerRef.current);
-        return;
-      } catch (e) {
-        console.warn('[Player] Error al registrar subtítulo en Shaka, cayendo a elemento HTML track:', e);
+        const res = await fetch(track.url);
+        const text = await res.text();
+        const parsed = parseVttToCues(text);
+        activeCustomCuesRef.current = parsed;
+        track.cues = parsed;
+      } catch (err) {
+        console.warn('[Player] Error al parsear cues de URL de subtítulo:', err);
       }
     }
 
-    if (video && trackUrl) {
-      if (video.textTracks) {
-        for (let i = 0; i < video.textTracks.length; i++) {
-          video.textTracks[i].mode = 'disabled';
-        }
+    setSubtitleTracks((prev) => [
+      ...prev.filter((t) => t.id !== track.id).map((t) => ({ ...t, active: false })),
+      { ...track, active: true },
+    ]);
+    setSelectedSubtitleId(track.id);
+    activeNativeTrackRef.current = null;
+
+    // Desactivar pistas nativas del elemento de video para evitar conflictos
+    const video = videoRef.current;
+    if (video && video.textTracks) {
+      for (let i = 0; i < video.textTracks.length; i++) {
+        video.textTracks[i].mode = 'disabled';
       }
-      const trackEl = document.createElement('track');
-      trackEl.kind = 'subtitles';
-      trackEl.label = track.name;
-      trackEl.srclang = track.lang || 'es';
-      trackEl.src = trackUrl;
-      trackEl.default = true;
-      video.appendChild(trackEl);
-      trackEl.track.mode = 'showing';
+    }
+
+    if (currentEngineRef.current === 'shaka' && shakaPlayerRef.current) {
+      shakaPlayerRef.current.setTextTrackVisibility(false);
+    }
+
+    // Sincronizar de inmediato el texto si el video está reproduciéndose
+    if (video) {
+      const now = video.currentTime;
+      const match = activeCustomCuesRef.current.find((c) => now >= c.start && now <= c.end);
+      setActiveSubtitleText(match ? match.text : '');
     }
   };
 
@@ -1219,17 +1265,83 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   };
 
   // Cambio dinámico de pista de subtítulos
-  const handleSelectSubtitleTrack = (trackId: number | string | -1) => {
+  const handleSelectSubtitleTrack = async (trackId: number | string | -1) => {
     const isDisable = trackId === -1 || trackId === '-1';
 
-    // Manejo de pista personalizada externa (Blob WebVTT)
-    const customTrack = subtitleTracks.find((s) => String(s.id) === String(trackId) && (s as any).url);
-    if (customTrack && videoRef.current && videoRef.current.textTracks) {
-      for (let i = 0; i < videoRef.current.textTracks.length; i++) {
-        const tt = videoRef.current.textTracks[i];
-        tt.mode = !isDisable && tt.label === customTrack.name ? 'showing' : 'disabled';
+    if (isDisable) {
+      setSelectedSubtitleId(-1);
+      setActiveSubtitleText('');
+      activeCustomCuesRef.current = [];
+      activeNativeTrackRef.current = null;
+
+      if (videoRef.current && videoRef.current.textTracks) {
+        for (let i = 0; i < videoRef.current.textTracks.length; i++) {
+          videoRef.current.textTracks[i].mode = 'disabled';
+        }
       }
-      setSelectedSubtitleId(isDisable ? -1 : trackId);
+
+      if (currentEngineRef.current === 'shaka' && shakaPlayerRef.current) {
+        shakaPlayerRef.current.setTextTrackVisibility(false);
+      } else if (currentEngineRef.current === 'hls' && hlsRef.current) {
+        hlsRef.current.subtitleTrack = -1;
+      }
+
+      setSubtitleTracks((prev) => prev.map((t) => ({ ...t, active: false })));
+      return;
+    }
+
+    // 1. Pista personalizada o descargada online
+    const customTrack = subtitleTracks.find((s) => String(s.id) === String(trackId));
+    if (customTrack && ((customTrack as any).url || customTrack.cues)) {
+      if (customTrack.cues && customTrack.cues.length > 0) {
+        activeCustomCuesRef.current = customTrack.cues;
+      } else if ((customTrack as any).url) {
+        try {
+          const res = await fetch((customTrack as any).url);
+          const text = await res.text();
+          const parsed = parseVttToCues(text);
+          activeCustomCuesRef.current = parsed;
+          customTrack.cues = parsed;
+        } catch (err) {
+          console.warn('[Player] Error al cargar cues de track seleccionado:', err);
+        }
+      }
+
+      activeNativeTrackRef.current = null;
+      setSelectedSubtitleId(trackId);
+      setSubtitleTracks((prev) =>
+        prev.map((t) => ({
+          ...t,
+          active: String(t.id) === String(trackId),
+        }))
+      );
+
+      // Desactivar pistas nativas
+      if (videoRef.current && videoRef.current.textTracks) {
+        for (let i = 0; i < videoRef.current.textTracks.length; i++) {
+          videoRef.current.textTracks[i].mode = 'disabled';
+        }
+      }
+
+      // Sincronizar cue inmediata
+      if (videoRef.current) {
+        const now = videoRef.current.currentTime;
+        const match = activeCustomCuesRef.current.find((c) => now >= c.start && now <= c.end);
+        setActiveSubtitleText(match ? match.text : '');
+      }
+      return;
+    }
+
+    // 2. Motor Shaka Player
+    if (currentEngineRef.current === 'shaka' && shakaPlayerRef.current) {
+      const player = shakaPlayerRef.current;
+      const textTracks = player.getTextTracks();
+      const target = textTracks.find((t) => String(t.id) === String(trackId));
+      if (target) {
+        player.selectTextTrack(target);
+        player.setTextTrackVisibility(true);
+        setSelectedSubtitleId(trackId);
+      }
       setSubtitleTracks((prev) =>
         prev.map((t) => ({
           ...t,
@@ -1239,27 +1351,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       return;
     }
 
-    if (currentEngineRef.current === 'shaka' && shakaPlayerRef.current) {
-      const player = shakaPlayerRef.current;
-      if (isDisable) {
-        player.setTextTrackVisibility(false);
-        setSelectedSubtitleId(-1);
-      } else {
-        const textTracks = player.getTextTracks();
-        const target = textTracks.find((t) => String(t.id) === String(trackId));
-        if (target) {
-          player.selectTextTrack(target);
-          player.setTextTrackVisibility(true);
-          setSelectedSubtitleId(trackId);
-        }
-      }
-      setSubtitleTracks((prev) =>
-        prev.map((t) => ({
-          ...t,
-          active: !isDisable && String(t.id) === String(trackId),
-        }))
-      );
-    } else if (currentEngineRef.current === 'hls' && hlsRef.current) {
+    // 3. Motor Hls.js
+    if (currentEngineRef.current === 'hls' && hlsRef.current) {
       hlsRef.current.subtitleTrack = Number(trackId);
       setSelectedSubtitleId(trackId);
       setSubtitleTracks((prev) =>
@@ -1268,10 +1361,44 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           active: !isDisable && String(t.id) === String(trackId),
         }))
       );
-    } else if (videoRef.current && videoRef.current.textTracks) {
+      return;
+    }
+
+    // 4. Pistas de texto nativas en elemento <video> (iPhone WebKit / AVPlayer / Safari)
+    if (videoRef.current && videoRef.current.textTracks) {
+      const targetIdx = Number(trackId);
+      let targetTrack: TextTrack | null = null;
+
       for (let i = 0; i < videoRef.current.textTracks.length; i++) {
-        videoRef.current.textTracks[i].mode = !isDisable && i === Number(trackId) ? 'showing' : 'disabled';
+        const tt = videoRef.current.textTracks[i];
+        if (i === targetIdx) {
+          tt.mode = 'hidden'; // 'hidden' permite leer activeCues y cuechange en JS sin duplicar renderizado
+          targetTrack = tt;
+        } else {
+          tt.mode = 'disabled';
+        }
       }
+
+      if (targetTrack) {
+        activeNativeTrackRef.current = targetTrack;
+        activeCustomCuesRef.current = [];
+
+        const updateCue = () => {
+          if (targetTrack?.activeCues && targetTrack.activeCues.length > 0) {
+            const txt = Array.from(targetTrack.activeCues)
+              .map((c: any) => c.text || '')
+              .filter(Boolean)
+              .join('\n');
+            setActiveSubtitleText(txt);
+          } else {
+            setActiveSubtitleText('');
+          }
+        };
+
+        targetTrack.oncuechange = updateCue;
+        updateCue();
+      }
+
       setSelectedSubtitleId(trackId);
       setSubtitleTracks((prev) =>
         prev.map((t) => ({
@@ -1491,7 +1618,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       }}
       className="relative w-full h-full bg-black flex items-center justify-center overflow-hidden select-none cursor-pointer"
     >
-      {/* Dynamic Subtitle Style Tag */}
+      {/* Dynamic Subtitle Style Tag (CSS estandarizado compatible con WebKit/Safari) */}
       <style>{`
         video::cue {
           font-size: ${subtitleFontSize} !important;
@@ -1501,8 +1628,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           font-weight: 700 !important;
           line-height: ${subtitleLineHeight} !important;
           text-shadow: ${subtitleTextShadow} !important;
-          inset-block-end: ${subtitlePositionOffset} !important;
-          bottom: ${subtitlePositionOffset} !important;
         }
       `}</style>
 
@@ -1520,6 +1645,34 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             : 'aspect-[4/3] object-fill'
         }`}
       />
+
+      {/* Subtítulos en Pantalla (Overlay Universal para Móvil, PC y Smart TV) */}
+      {activeSubtitleText && (
+        <div
+          className="absolute pointer-events-none z-30 flex justify-center w-full px-4 text-center transition-all duration-150"
+          style={{
+            bottom: subtitleStyle.position === 'middle' ? '45%' : osdVisible ? '5.5rem' : '2.5rem',
+          }}
+        >
+          <div
+            style={{
+              fontSize: subtitleFontSize,
+              color: subtitleColor,
+              backgroundColor: subtitleBg,
+              lineHeight: subtitleLineHeight,
+              textShadow: subtitleTextShadow,
+              fontFamily: "'Inter', sans-serif",
+              fontWeight: 700,
+              borderRadius: '0.375rem',
+              padding: '0.25rem 0.75rem',
+              maxWidth: '85%',
+              whiteSpace: 'pre-line',
+            }}
+          >
+            {activeSubtitleText}
+          </div>
+        </div>
+      )}
 
       {/* Spinner de Carga */}
       {loading && !error && (
@@ -1737,6 +1890,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         onLoadCustomSubtitle={handleLoadCustomSubtitle}
         contentTitle={title}
         contentType={categoryName?.toLowerCase().includes('serie') ? 'series' : 'movie'}
+        season={seasonNum}
+        episode={episodeNum}
       />
     </div>
   );

@@ -131,15 +131,19 @@ export const TracksModal: React.FC<TracksModalProps> = ({
     }
   };
 
-  // Auto-buscar cuando el usuario entra en la pestaña online por primera vez
+  // Auto-buscar cuando el modal se abre con un título de contenido
   useEffect(() => {
-    if (isOpen && activeTab === 'online' && !hasAutoSearched && contentTitle) {
+    if (isOpen && !hasAutoSearched && contentTitle) {
       setHasAutoSearched(true);
       const clean = cleanSearchTitle(contentTitle);
       setOnlineSearchQuery(clean);
       executeOnlineSearch(clean);
     }
-  }, [isOpen, activeTab, hasAutoSearched, contentTitle]);
+  }, [isOpen, hasAutoSearched, contentTitle]);
+
+  useEffect(() => {
+    setHasAutoSearched(false);
+  }, [contentTitle]);
 
   // Descargar y activar subtítulo online
   const handleActivateOnlineSubtitle = async (sub: OnlineSubtitle) => {
@@ -366,6 +370,19 @@ export const TracksModal: React.FC<TracksModalProps> = ({
                     );
                   })
                 )}
+
+                {/* Callout informativo sobre audio en navegadores vs móviles */}
+                {audioTracks.length <= 1 && (
+                  <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-xs text-slate-300 mt-2">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Sparkles className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                      <span className="font-semibold text-blue-300 text-xs">Pistas de audio en PC y Móvil</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      En navegadores de escritorio (Chrome/Edge en PC), los archivos directos utilizan la pista de audio principal. La detección y conmutación entre múltiples idiomas de audio internos está disponible en iPhone, iPad, Apple TV y Smart TVs con soporte nativo.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -495,44 +512,136 @@ export const TracksModal: React.FC<TracksModalProps> = ({
                     )}
                   </button>
 
-                  {subtitleTracks.length === 0 ? (
-                    <div className="p-4 bg-background/40 rounded-xl border border-surfaceLight text-xs text-slate-400 flex items-center gap-2.5">
-                      <MessageSquare className="w-4 h-4 text-slate-500 shrink-0" />
-                      <span>No hay subtítulos activos en este momento. Usa la pestaña "Buscar Online" arriba.</span>
-                    </div>
-                  ) : (
-                    subtitleTracks.map((track) => {
-                      const isSelected = String(track.id) === String(selectedSubtitleId);
-                      const subDisplayName = formatLanguageName(track.lang, track.name || track.label);
-                      return (
-                        <button
-                          key={track.id}
-                          type="button"
-                          data-nav="true"
-                          onClick={() => onSelectSubtitleTrack(track.id)}
-                          className={`w-full flex items-center justify-between p-3.5 rounded-xl text-xs font-semibold transition-all border focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
-                            isSelected
-                              ? 'bg-emerald-600/20 border-emerald-500 text-white shadow-md shadow-emerald-500/10'
-                              : 'bg-background/60 border-surfaceLight text-slate-300 hover:border-slate-500 hover:text-white hover:bg-surfaceLight/50'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 min-w-0 pr-2">
-                            <span className="font-bold text-white text-sm truncate">{subDisplayName}</span>
-                            {track.lang && track.lang !== 'und' && (
-                              <span className="text-[10px] text-slate-400 uppercase font-mono bg-surfaceLight px-1.5 py-0.5 rounded shrink-0">
-                                [{track.lang}]
-                              </span>
-                            )}
-                          </div>
-                          {isSelected && (
-                            <div className="w-6 h-6 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center shrink-0">
-                              <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[3]" />
+                  {subtitleTracks.length > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                        Subtítulos del Contenido
+                      </span>
+                      {subtitleTracks.map((track) => {
+                        const isSelected = String(track.id) === String(selectedSubtitleId);
+                        const subDisplayName = formatLanguageName(track.lang, track.name || track.label);
+                        return (
+                          <button
+                            key={track.id}
+                            type="button"
+                            data-nav="true"
+                            onClick={() => onSelectSubtitleTrack(track.id)}
+                            className={`w-full flex items-center justify-between p-3 rounded-xl text-xs font-semibold transition-all border focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
+                              isSelected
+                                ? 'bg-emerald-600/20 border-emerald-500 text-white shadow-md shadow-emerald-500/10'
+                                : 'bg-background/60 border-surfaceLight text-slate-300 hover:border-slate-500 hover:text-white hover:bg-surfaceLight/50'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0 pr-2">
+                              <span className="font-bold text-white text-sm truncate">{subDisplayName}</span>
+                              {track.lang && track.lang !== 'und' && (
+                                <span className="text-[10px] text-slate-400 uppercase font-mono bg-surfaceLight px-1.5 py-0.5 rounded shrink-0">
+                                  [{track.lang}]
+                                </span>
+                              )}
                             </div>
-                          )}
-                        </button>
-                      );
-                    })
+                            {isSelected && (
+                              <div className="w-6 h-6 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center shrink-0">
+                                <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[3]" />
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
                   )}
+
+                  {/* Sección integrada: Subtítulos en Línea Disponibles (OpenSubtitles) */}
+                  <div className="pt-3 border-t border-surfaceLight/60 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+                        <Globe className="w-3.5 h-3.5" />
+                        Subtítulos en Línea Disponibles
+                      </span>
+                      {onlineSubs.length > 0 && (
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {onlineSubs.length} encontrados
+                        </span>
+                      )}
+                    </div>
+
+                    {isSearchingOnline && (
+                      <div className="p-3 bg-surfaceLight/30 rounded-xl flex items-center gap-2.5 text-xs text-slate-300">
+                        <Loader2 className="w-4 h-4 text-cyan-400 animate-spin shrink-0" />
+                        <span>Buscando subtítulos automáticos en español e inglés...</span>
+                      </div>
+                    )}
+
+                    {!isSearchingOnline && onlineSubs.length === 0 && subtitleTracks.length === 0 && (
+                      <div className="p-3.5 bg-background/40 rounded-xl border border-surfaceLight text-xs text-slate-400 flex items-center gap-2.5">
+                        <MessageSquare className="w-4 h-4 text-slate-500 shrink-0" />
+                        <span>No se detectaron subtítulos automáticos. Usa la pestaña "Buscar Online" arriba para buscar por nombre.</span>
+                      </div>
+                    )}
+
+                    {!isSearchingOnline && onlineSubs.length > 0 && (
+                      <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                        {onlineSubs.slice(0, 8).map((sub) => {
+                          const isDownloading = downloadingSubId === sub.id;
+                          const isThisActive = subtitleTracks.some(
+                            (t) => String(t.id).includes(sub.id) && String(t.id) === String(selectedSubtitleId)
+                          );
+
+                          return (
+                            <div
+                              key={sub.id}
+                              className={`p-2.5 rounded-xl border flex items-center justify-between gap-2.5 transition-all ${
+                                isThisActive
+                                  ? 'bg-cyan-600/20 border-cyan-500 text-white'
+                                  : 'bg-background/40 border-surfaceLight/80 text-slate-300 hover:border-slate-500'
+                              }`}
+                            >
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5 mb-0.5">
+                                  <span
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                      sub.isSpanish
+                                        ? 'bg-emerald-500/20 text-emerald-300'
+                                        : 'bg-blue-500/20 text-blue-300'
+                                    }`}
+                                  >
+                                    {sub.langName}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] font-medium truncate text-white">{sub.name}</p>
+                              </div>
+
+                              <button
+                                type="button"
+                                data-nav="true"
+                                disabled={isDownloading || isThisActive}
+                                onClick={() => handleActivateOnlineSubtitle(sub)}
+                                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold shrink-0 flex items-center gap-1.5 transition-all ${
+                                  isThisActive
+                                    ? 'bg-cyan-500/30 text-cyan-300 cursor-default'
+                                    : 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-md shadow-cyan-600/20'
+                                }`}
+                              >
+                                {isDownloading ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : isThisActive ? (
+                                  <>
+                                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                    <span>Activo</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Download className="w-3.5 h-3.5" />
+                                    <span>Activar</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}

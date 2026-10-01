@@ -1,5 +1,5 @@
 import { MediaTrack } from '../types';
-import { convertSrtToVtt } from '../utils/subtitles';
+import { convertSrtToVtt, parseVttToCues } from '../utils/subtitles';
 import { formatLanguageName } from '../utils/language';
 
 export interface OnlineSubtitle {
@@ -180,6 +180,7 @@ export async function downloadAndActivateSubtitle(sub: OnlineSubtitle): Promise<
   const objectUrl = URL.createObjectURL(blob);
 
   const cleanLabel = sub.name.replace(/\.(srt|vtt)$/i, '');
+  const cues = parseVttToCues(vttText);
   return {
     id: `online_${sub.id}_${Date.now()}`,
     name: `${sub.langName}: ${cleanLabel}`,
@@ -188,5 +189,7 @@ export async function downloadAndActivateSubtitle(sub: OnlineSubtitle): Promise<
     active: true,
     label: sub.langName,
     url: objectUrl,
+    cues,
+    rawVttText: vttText,
   } as MediaTrack;
 }
