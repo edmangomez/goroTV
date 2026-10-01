@@ -165,7 +165,12 @@ export const App: React.FC = () => {
 
   // Si no hay sesión, mostrar pantalla de Login
   if (!session) {
-    return <LoginView onLoginSuccess={handleLoginSuccess} />;
+    return (
+      <>
+        <LoginView onLoginSuccess={handleLoginSuccess} />
+        <IosInstallPrompt />
+      </>
+    );
   }
 
   // Título de la pestaña activa
