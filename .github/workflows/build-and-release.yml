@@ -43,6 +43,11 @@ jobs:
           cp -r platforms/android-tv/www/* platforms/android-tv/android/app/src/main/assets/public/
           cp platforms/android-tv/capacitor.config.json platforms/android-tv/android/app/src/main/assets/capacitor.config.json
 
+      - name: Asegurar Android SDK 36
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager "platforms;android-36" || true
+
       - name: Compilar APK con Gradle
         working-directory: platforms/android-tv/android
         run: |
