@@ -17,6 +17,7 @@ import { SessionLimitModal } from './views/SessionLimitModal';
 import { ExpiredModal } from './views/ExpiredModal';
 import { toggleAppFullscreen } from './utils/fullscreen';
 import { IosInstallPrompt } from './components/pwa/IosInstallPrompt';
+import { LandingView } from './views/LandingView';
 
 export const App: React.FC = () => {
   // Sesión guardada en almacenamiento local
@@ -162,6 +163,11 @@ export const App: React.FC = () => {
     setSession(newSession);
     setActiveTab('live');
   };
+
+  // Ruta pública: Landing Page sin autenticación
+  if (window.location.pathname === '/iptv-player') {
+    return <LandingView />;
+  }
 
   // Si no hay sesión, mostrar pantalla de Login
   if (!session) {

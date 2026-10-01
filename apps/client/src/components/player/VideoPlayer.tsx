@@ -11,6 +11,7 @@ import { parseVttToCues, SubtitleCueItem } from '../../utils/subtitles';
 import { DualAudioFetchStreamLoader } from '../../services/tsAudioLoader';
 import { isFullscreenActive, toggleAppFullscreen, addFullscreenChangeListener } from '../../utils/fullscreen';
 import { progressApi } from '../../services/progressApi';
+import { probeAudioTracks } from '../../utils/mp4Probe';
 
 // Instalar polyfills de Shaka para compatibilidad en navegadores y Smart TVs (Tizen, webOS, Android TV)
 if (typeof window !== 'undefined') {
@@ -500,6 +501,22 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           setAudioTracks(audios);
           const activeAudio = audios.find((a) => a.active);
           if (activeAudio) setSelectedAudioId(activeAudio.id);
+        } else if (url.toLowerCase().includes('.mp4')) {
+          // Fallback MSE-less para detectar pistas de audio en MP4 en navegadores PC
+          probeAudioTracks(url).then(tracks => {
+            if (isCancelled || !videoRef.current) return;
+            if (tracks.length > 0) {
+              const audios: MediaTrack[] = tracks.map((t, idx) => ({
+                id: t.id,
+                name: t.displayName || `Audio ${idx + 1}`,
+                lang: t.language,
+                type: 'audio',
+                active: idx === 0,
+              }));
+              setAudioTracks(audios);
+              setSelectedAudioId(audios[0].id);
+            }
+          }).catch(console.warn);
         }
       };
 
