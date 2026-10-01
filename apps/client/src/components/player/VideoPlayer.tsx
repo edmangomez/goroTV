@@ -1560,15 +1560,16 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
               <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-2.5 text-center">
                 <p className="text-[11px] text-slate-300">
-                  🏠 En tu hogar o Smart TV, puedes ver sin configurar nada abriendo en tu red local:
+                  🏠 En tu hogar o Smart TV, puedes ver sin configurar nada abriendo:
                 </p>
                 <a
-                  href="http://192.168.2.240/"
+                  href="http://tv.gorofamily.com"
                   className="inline-block mt-1 text-xs font-mono font-bold text-blue-400 hover:text-blue-300 hover:underline"
                 >
-                  http://192.168.2.240/
+                  http://tv.gorofamily.com
                 </a>
               </div>
+
             </div>
           ) : (
             <>
