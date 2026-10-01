@@ -16,6 +16,7 @@ import { SettingsView } from './views/SettingsView';
 import { SessionLimitModal } from './views/SessionLimitModal';
 import { ExpiredModal } from './views/ExpiredModal';
 import { toggleAppFullscreen } from './utils/fullscreen';
+import { IosInstallPrompt } from './components/pwa/IosInstallPrompt';
 
 export const App: React.FC = () => {
   // Sesión guardada en almacenamiento local
@@ -245,6 +246,9 @@ export const App: React.FC = () => {
         expiresAt={expiredError.expiresAt}
         onLogout={handleLogout}
       />
+
+      {/* Sugerencia de instalación PWA en iPhone / iOS */}
+      <IosInstallPrompt />
     </div>
   );
 };

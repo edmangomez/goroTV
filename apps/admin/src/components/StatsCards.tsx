@@ -53,19 +53,19 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats }) => {
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mb-8">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-4 mb-5 sm:mb-8">
       {cards.map((card, idx) => {
         const Icon = card.icon;
         return (
           <div
             key={idx}
-            className={`p-4 rounded-2xl border ${card.bg} bg-surface/50 backdrop-blur-sm flex flex-col justify-between transition-transform hover:-translate-y-0.5`}
+            className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl border ${card.bg} bg-surface/50 backdrop-blur-sm flex flex-col justify-between transition-transform hover:-translate-y-0.5`}
           >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-medium text-slate-400 truncate">{card.title}</span>
-              <Icon className={`w-4 h-4 ${card.color}`} />
+            <div className="flex items-center justify-between mb-1 sm:mb-2">
+              <span className="text-[11px] sm:text-xs font-medium text-slate-400 truncate">{card.title}</span>
+              <Icon className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${card.color} shrink-0`} />
             </div>
-            <div className="text-2xl font-black text-white">{card.value}</div>
+            <div className="text-xl sm:text-2xl font-black text-white">{card.value}</div>
           </div>
         );
       })}

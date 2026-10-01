@@ -151,17 +151,17 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
-      <div className="bg-surface border border-surfaceLight rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
+      <div className="bg-surface border border-surfaceLight rounded-2xl sm:rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl flex flex-col max-h-[92dvh]">
         {/* Header */}
-        <div className="px-6 py-5 border-b border-surfaceLight flex items-center justify-between">
+        <div className="px-4 sm:px-6 py-3.5 sm:py-5 border-b border-surfaceLight flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
-              <ShieldCheck className="w-5 h-5" />
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
+              <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-white text-base">Seguridad & Administradores</h3>
-              <p className="text-xs text-slate-400">Cambia tus credenciales o crea cuentas de administrador</p>
+              <h3 className="font-bold text-white text-base leading-tight">Seguridad & Administradores</h3>
+              <p className="text-xs text-slate-400 hidden sm:block">Cambia tus credenciales o crea cuentas de administrador</p>
             </div>
           </div>
           <button
@@ -173,10 +173,10 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-surfaceLight px-6 bg-background/50">
+        <div className="flex border-b border-surfaceLight px-3 sm:px-6 bg-background/50 overflow-x-auto no-scrollbar shrink-0">
           <button
             onClick={() => setActiveTab('profile')}
-            className={`flex items-center gap-2 py-3 px-4 text-xs font-bold border-b-2 transition-colors ${
+            className={`flex items-center gap-2 py-3 px-3 sm:px-4 text-xs font-bold border-b-2 transition-colors whitespace-nowrap shrink-0 ${
               activeTab === 'profile'
                 ? 'border-blue-500 text-blue-400'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -188,7 +188,7 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
 
           <button
             onClick={() => setActiveTab('admins')}
-            className={`flex items-center gap-2 py-3 px-4 text-xs font-bold border-b-2 transition-colors ${
+            className={`flex items-center gap-2 py-3 px-3 sm:px-4 text-xs font-bold border-b-2 transition-colors whitespace-nowrap shrink-0 ${
               activeTab === 'admins'
                 ? 'border-blue-500 text-blue-400'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -199,7 +199,7 @@ export const AdminSecurityModal: React.FC<AdminSecurityModalProps> = ({
           </button>
         </div>
 
-        <div className="p-6 max-h-[75vh] overflow-y-auto">
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1">
           {/* TAB 1: MI PERFIL / CAMBIO DE CLAVE */}
           {activeTab === 'profile' && (
             <form onSubmit={handleUpdateProfile} className="space-y-4">

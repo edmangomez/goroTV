@@ -1,34 +1,34 @@
 {
-  "name": "goroTV",
-  "short_name": "goroTV",
-  "description": "goroTV - Plataforma Multiplataforma de Streaming IPTV",
-  "start_url": "/",
-  "scope": "/",
+  "name": "goroTV Admin",
+  "short_name": "goroTV Admin",
+  "description": "goroTV - Panel de Administración",
+  "start_url": "/admin/",
+  "scope": "/admin/",
   "display": "standalone",
   "background_color": "#0B0F19",
   "theme_color": "#0B0F19",
   "orientation": "any",
   "icons": [
     {
-      "src": "/apple-touch-icon.png",
+      "src": "/admin/apple-touch-icon.png",
       "sizes": "180x180",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/pwa-192x192.png",
+      "src": "/admin/pwa-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/pwa-512x512.png",
+      "src": "/admin/pwa-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/favicon.svg",
+      "src": "/admin/favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml"
     }

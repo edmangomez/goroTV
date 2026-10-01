@@ -74,13 +74,13 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
-      <div className="bg-surface border border-surfaceLight rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
-        <div className="px-6 py-4 border-b border-surfaceLight flex items-center justify-between">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
+      <div className="bg-surface border border-surfaceLight rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[92dvh]">
+        <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-surfaceLight flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <Server className="w-5 h-5 text-blue-500" />
             <h3 className="font-bold text-white text-base">
-              {initialProvider ? `Editar Proveedor: ${initialProvider.name}` : 'Registrar Proveedor Xtream'}
+              {initialProvider ? `Editar: ${initialProvider.name}` : 'Registrar Proveedor Xtream'}
             </h3>
           </div>
           <button
@@ -91,7 +91,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
           {error && (
             <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium">
               {error}
