@@ -27,13 +27,21 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
+      - name: Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar dependencias Capacitor
+        working-directory: platforms/android-tv
+        run: |
+          npm install
 
       - name: Preparar assets web para Android
         run: |
           mkdir -p platforms/android-tv/android/app/src/main/assets/public
           cp -r platforms/android-tv/www/* platforms/android-tv/android/app/src/main/assets/public/
           cp platforms/android-tv/capacitor.config.json platforms/android-tv/android/app/src/main/assets/capacitor.config.json
-          echo "{}" > platforms/android-tv/android/app/src/main/assets/capacitor.plugins.json
 
       - name: Compilar APK Release con Gradle
         working-directory: platforms/android-tv/android
