@@ -3,9 +3,11 @@ import { VhsLogo } from '../components/common/VhsLogo';
 
 // ─── URLs de descarga de APK ────────────────────────────────────────────────
 // Actualiza estas URLs cuando tengas los APKs en tu servidor / GitHub Releases
-const APK_FIRE_TV_URL   = 'https://github.com/edmangomez/goroTV/releases/latest/download/gorotv-firetv.apk';
-const APK_GOOGLE_TV_URL = 'https://github.com/edmangomez/goroTV/releases/latest/download/gorotv-googletv.apk';
+const APK_FIRE_TV_URL   = '/downloads/gorotv-firetv.apk';
+const APK_GOOGLE_TV_URL = '/downloads/gorotv-googletv.apk';
 const EXE_WINDOWS_URL   = '/downloads/gorotv-windows.zip';
+const EXE_WINDOWS_DIRECT = '/downloads/gorotv-windows.exe';
+const GITHUB_RELEASE_URL = 'https://github.com/edmangomez/goroTV/releases/tag/v1.0.1';
 
 export const LandingView: React.FC = () => {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
@@ -101,13 +103,13 @@ export const LandingView: React.FC = () => {
                 <span className="text-xs bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-0.5 rounded-full">Sideload APK</span>
               </div>
               <ol className="list-decimal list-inside text-gray-400 space-y-2 text-sm">
-                <li>Activa "Fuentes desconocidas" en Configuración → Mi Fire TV → Opciones para desarrolladores</li>
-                <li>Descarga e instala la app <strong>Downloader</strong> desde la tienda</li>
-                <li>Abre Downloader, pega la URL del APK y sigue los pasos</li>
+                <li>Activa "Fuentes desconocidas" en Configuración → Mi Fire TV</li>
+                <li>Abre la app <strong>Downloader</strong> desde la tienda</li>
+                <li>Escribe la URL directa: <span className="block mt-1 font-mono text-xs text-orange-400 bg-black/50 p-1.5 rounded select-all break-all">http://tv.gorofamily.com/downloads/gorotv-firetv.apk</span></li>
               </ol>
               <a
                 href={APK_FIRE_TV_URL}
-                download
+                download="gorotv-firetv.apk"
                 className="mt-auto flex items-center justify-center gap-2 w-full bg-orange-500 hover:bg-orange-400 text-white font-bold py-3 px-4 rounded-xl transition-all transform hover:scale-105 shadow-[0_0_15px_rgba(249,115,22,0.3)]"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -127,13 +129,13 @@ export const LandingView: React.FC = () => {
                 <span className="text-xs bg-green-500/20 text-green-400 border border-green-500/30 px-2 py-0.5 rounded-full">Sideload APK</span>
               </div>
               <ol className="list-decimal list-inside text-gray-400 space-y-2 text-sm">
-                <li>Activa "Fuentes desconocidas" en Configuración → Seguridad</li>
-                <li>Instala un gestor de archivos o <strong>Downloader</strong> desde Play Store</li>
-                <li>Abre el gestor, navega al APK descargado e instala</li>
+                <li>Activa "Orígenes desconocidos" en Configuración → Seguridad</li>
+                <li>Instala un gestor de archivos o <strong>Downloader</strong></li>
+                <li>Descarga el APK o introduce: <span className="block mt-1 font-mono text-xs text-green-400 bg-black/50 p-1.5 rounded select-all break-all">http://tv.gorofamily.com/downloads/gorotv-googletv.apk</span></li>
               </ol>
               <a
                 href={APK_GOOGLE_TV_URL}
-                download
+                download="gorotv-googletv.apk"
                 className="mt-auto flex items-center justify-center gap-2 w-full bg-[#00D4FF] hover:bg-cyan-300 text-[#0D1117] font-bold py-3 px-4 rounded-xl transition-all transform hover:scale-105 shadow-[0_0_15px_rgba(0,212,255,0.3)]"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -150,23 +152,32 @@ export const LandingView: React.FC = () => {
                   <span className="text-2xl">💻</span>
                   <h3 className="text-xl font-bold">Windows (PC)</h3>
                 </div>
-                <span className="text-xs bg-purple-500/20 text-purple-400 border border-purple-500/30 px-2 py-0.5 rounded-full">Desktop App (.exe)</span>
+                <span className="text-xs bg-purple-500/20 text-purple-400 border border-purple-500/30 px-2 py-0.5 rounded-full">Desktop App Nativa</span>
               </div>
               <ol className="list-decimal list-inside text-gray-400 space-y-2 text-sm">
-                <li>Descarga la aplicación oficial para Windows</li>
-                <li>Ejecuta el archivo directamente sin instalaciones complejas</li>
-                <li>Streaming 4K acelerado por hardware sin límites de navegador</li>
+                <li>Descarga la aplicación oficial para Windows 10/11</li>
+                <li>Descomprime el ZIP o ejecuta directamente <strong>goroTV.exe</strong></li>
+                <li>Disfruta de aceleración gráfica sin bloqueos de navegador</li>
               </ol>
-              <a
-                href={EXE_WINDOWS_URL}
-                download
-                className="mt-auto flex items-center justify-center gap-2 w-full bg-gradient-to-r from-[#7B2FBE] to-[#00D4FF] hover:from-purple-600 hover:to-cyan-400 text-white font-bold py-3 px-4 rounded-xl transition-all transform hover:scale-105 shadow-[0_0_15px_rgba(123,47,190,0.4)]"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                Descargar para Windows (.exe)
-              </a>
+              <div className="mt-auto flex flex-col gap-2">
+                <a
+                  href={EXE_WINDOWS_DIRECT}
+                  download="gorotv-windows.exe"
+                  className="flex items-center justify-center gap-2 w-full bg-gradient-to-r from-[#7B2FBE] to-[#00D4FF] hover:from-purple-600 hover:to-cyan-400 text-white font-bold py-2.5 px-4 rounded-xl transition-all transform hover:scale-105 shadow-[0_0_15px_rgba(123,47,190,0.4)] text-sm"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Descargar Ejecutable (.exe)
+                </a>
+                <a
+                  href={EXE_WINDOWS_URL}
+                  download="gorotv-windows.zip"
+                  className="flex items-center justify-center gap-2 w-full bg-[#1A2333] hover:bg-[#253248] text-gray-300 font-semibold py-2 px-4 rounded-xl transition-colors text-xs border border-[#2D3F58]"
+                >
+                  Descargar Paquete Portable (.zip)
+                </a>
+              </div>
             </div>
             <div className="border border-[#1E293B] bg-[#0D1117] rounded-2xl p-6">
               <h3 className="text-xl font-bold mb-4 flex items-center gap-2">🖥️ Samsung Tizen</h3>
@@ -193,6 +204,25 @@ export const LandingView: React.FC = () => {
               <p className="text-gray-400 text-sm mb-4">Disponible directamente en cualquier navegador moderno sin instalar nada.</p>
               <button onClick={() => window.location.href = '/'} className="text-[#00D4FF] font-medium hover:underline">Abrir Web Player &rarr;</button>
             </div>
+          </div>
+
+          {/* GitHub Releases Mirror */}
+          <div className="mt-8 p-4 rounded-xl border border-[#1E293B] bg-[#0B0F19] flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">📦</span>
+              <div>
+                <p className="text-sm font-semibold text-gray-200">Repositorio y Espejo Oficial en GitHub</p>
+                <p className="text-xs text-gray-400">Descarga los archivos binarios compilados directamente desde el Release v1.0.1 oficial.</p>
+              </div>
+            </div>
+            <a
+              href={GITHUB_RELEASE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-bold text-[#00D4FF] hover:underline flex items-center gap-1 border border-[#00D4FF]/30 px-3 py-1.5 rounded-lg hover:bg-[#00D4FF]/10 transition-colors whitespace-nowrap"
+            >
+              Ver GitHub Release v1.0.1 &rarr;
+            </a>
           </div>
         </div>
       </section>
