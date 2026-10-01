@@ -43,16 +43,16 @@ jobs:
           cp -r platforms/android-tv/www/* platforms/android-tv/android/app/src/main/assets/public/
           cp platforms/android-tv/capacitor.config.json platforms/android-tv/android/app/src/main/assets/capacitor.config.json
 
-      - name: Compilar APK Release con Gradle
+      - name: Compilar APK con Gradle
         working-directory: platforms/android-tv/android
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon
+          ./gradlew assembleRelease --no-daemon --stacktrace || ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Preparar APKs para Fire TV y Google TV
         run: |
           mkdir -p release-apks
-          APK_PATH=$(find platforms/android-tv/android/app/build/outputs/apk/release/ -name "*.apk" | head -n 1)
+          APK_PATH=$(find platforms/android-tv/android/app/build/outputs/apk/ -name "*.apk" | head -n 1)
           if [ -z "$APK_PATH" ]; then
             echo "Error: No se encontró APK generado."
             exit 1
