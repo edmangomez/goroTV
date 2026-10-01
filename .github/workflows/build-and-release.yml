@@ -47,7 +47,7 @@ jobs:
         working-directory: platforms/android-tv/android
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon --stacktrace || ./gradlew assembleDebug --no-daemon --stacktrace
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Preparar APKs para Fire TV y Google TV
         run: |
