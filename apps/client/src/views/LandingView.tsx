@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
 import { VhsLogo } from '../components/common/VhsLogo';
 
+// ─── URLs de descarga de APK ────────────────────────────────────────────────
+// Actualiza estas URLs cuando tengas los APKs en tu servidor / GitHub Releases
+const APK_FIRE_TV_URL   = 'https://github.com/edmangomez/goroTV/releases/latest/download/gorotv-firetv.apk';
+const APK_GOOGLE_TV_URL = 'https://github.com/edmangomez/goroTV/releases/latest/download/gorotv-googletv.apk';
+
 export const LandingView: React.FC = () => {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
@@ -85,13 +90,56 @@ export const LandingView: React.FC = () => {
         <div className="max-w-7xl mx-auto">
           <h2 className="text-3xl font-bold text-center mb-12">Instalación por Plataforma</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div className="border border-[#1E293B] bg-[#0D1117] rounded-2xl p-6">
-              <h3 className="text-xl font-bold mb-4 flex items-center gap-2">📺 Fire TV / Google TV</h3>
+            {/* Fire TV */}
+            <div className="border border-[#1E293B] bg-[#0D1117] rounded-2xl p-6 flex flex-col gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-2xl">🔥</span>
+                  <h3 className="text-xl font-bold">Amazon Fire TV</h3>
+                </div>
+                <span className="text-xs bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-0.5 rounded-full">Sideload APK</span>
+              </div>
               <ol className="list-decimal list-inside text-gray-400 space-y-2 text-sm">
-                <li>Instala la app 'Downloader'</li>
-                <li>Ingresa el código <strong>123456</strong></li>
-                <li>Instala el APK y abre goroTV</li>
+                <li>Activa "Fuentes desconocidas" en Configuración → Mi Fire TV → Opciones para desarrolladores</li>
+                <li>Descarga e instala la app <strong>Downloader</strong> desde la tienda</li>
+                <li>Abre Downloader, pega la URL del APK y sigue los pasos</li>
               </ol>
+              <a
+                href={APK_FIRE_TV_URL}
+                download
+                className="mt-auto flex items-center justify-center gap-2 w-full bg-orange-500 hover:bg-orange-400 text-white font-bold py-3 px-4 rounded-xl transition-all transform hover:scale-105 shadow-[0_0_15px_rgba(249,115,22,0.3)]"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Descargar APK — Fire TV
+              </a>
+            </div>
+
+            {/* Google TV / Android TV */}
+            <div className="border border-[#1E293B] bg-[#0D1117] rounded-2xl p-6 flex flex-col gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-2xl">📺</span>
+                  <h3 className="text-xl font-bold">Google TV / Android TV</h3>
+                </div>
+                <span className="text-xs bg-green-500/20 text-green-400 border border-green-500/30 px-2 py-0.5 rounded-full">Sideload APK</span>
+              </div>
+              <ol className="list-decimal list-inside text-gray-400 space-y-2 text-sm">
+                <li>Activa "Fuentes desconocidas" en Configuración → Seguridad</li>
+                <li>Instala un gestor de archivos o <strong>Downloader</strong> desde Play Store</li>
+                <li>Abre el gestor, navega al APK descargado e instala</li>
+              </ol>
+              <a
+                href={APK_GOOGLE_TV_URL}
+                download
+                className="mt-auto flex items-center justify-center gap-2 w-full bg-[#00D4FF] hover:bg-cyan-300 text-[#0D1117] font-bold py-3 px-4 rounded-xl transition-all transform hover:scale-105 shadow-[0_0_15px_rgba(0,212,255,0.3)]"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Descargar APK — Google TV
+              </a>
             </div>
             <div className="border border-[#1E293B] bg-[#0D1117] rounded-2xl p-6">
               <h3 className="text-xl font-bold mb-4 flex items-center gap-2">🖥️ Samsung Tizen</h3>
