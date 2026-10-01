@@ -1,0 +1,15 @@
+{
+  "appId": "com.gorotv.app",
+  "appName": "goroTV",
+  "webDir": "www",
+  "server": {
+    "url": "http://tv.gorofamily.com",
+    "cleartext": true,
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  }
+}

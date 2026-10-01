@@ -142,11 +142,7 @@ jobs:
           name: "goroTV Release ${{ steps.get_tag.outputs.tag }}"
           draft: false
           prerelease: false
-          files: |
-            artifacts/gorotv-firetv.apk
-            artifacts/gorotv-googletv.apk
-            artifacts/gorotv-windows.exe
-            artifacts/gorotv-windows-x64.zip
+          files: artifacts/*
           body: |
             ## 🚀 goroTV Multiplataforma - Lanzamiento Oficial
 
