@@ -1,10 +1,12 @@
 # Dependencies
 node_modules/
+**/node_modules/
 .pnp
 .pnp.js
 
 # Build outputs
 dist/
+**/dist/
 build/
 *.wgt
 *.ipk
@@ -45,6 +47,13 @@ Thumbs.db
 scratch/
 scratch_*.js
 sample_*.ts
-test_suite.cjs
+# Large release artifacts & desktop builds
+apps/client/public/downloads/
+platforms/windows/dist/
+platforms/windows/node_modules/
+platforms/android-tv/node_modules/
+platforms/android-tv/android/.gradle/
+platforms/android-tv/android/app/build/
+deploy_output.txt
 
 

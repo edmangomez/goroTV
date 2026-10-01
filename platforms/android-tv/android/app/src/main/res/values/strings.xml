@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">goroTV</string>
+    <string name="title_activity_main">goroTV</string>
+    <string name="package_name">com.gorotv.app</string>
+    <string name="custom_url_scheme">com.gorotv.app</string>
+</resources>

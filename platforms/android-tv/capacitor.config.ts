@@ -3,11 +3,10 @@ import { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'com.gorotv.app',
   appName: 'goroTV',
-  webDir: 'dist',
+  webDir: 'www',
   server: {
-    // Hosted Web App: Reemplaza con la URL de tu túnel de Cloudflare
-    // ej: https://gorotv.tudominio.com
-    url: process.env.GOROTV_HOSTED_URL || 'https://gorotv.tudominio.com',
+    // Hosted Web App conectada a goroTV
+    url: process.env.GOROTV_HOSTED_URL || 'http://tv.gorofamily.com',
     cleartext: true, // Permite streams de video HTTP de proveedores sin bloqueo
     androidScheme: 'https'
   },

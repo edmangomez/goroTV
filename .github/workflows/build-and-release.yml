@@ -1,0 +1,164 @@
+name: Build and Release goroTV Multiplatform
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Nombre del Tag / Release (ej: v1.0.0)'
+        required: false
+        default: 'v1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-android:
+    name: Compilar APKs Android TV y Fire TV
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar dependencias Capacitor
+        working-directory: platforms/android-tv
+        run: |
+          npm install
+
+      - name: Sincronizar proyecto Android con Capacitor
+        working-directory: platforms/android-tv
+        run: |
+          npx cap sync android
+
+      - name: Compilar APK Release con Gradle
+        working-directory: platforms/android-tv/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Preparar APKs para Fire TV y Google TV
+        run: |
+          mkdir -p release-apks
+          APK_PATH=$(find platforms/android-tv/android/app/build/outputs/apk/release/ -name "*.apk" | head -n 1)
+          if [ -z "$APK_PATH" ]; then
+            echo "Error: No se encontró APK generado."
+            exit 1
+          fi
+          echo "APK encontrado en: $APK_PATH"
+          cp "$APK_PATH" release-apks/gorotv-firetv.apk
+          cp "$APK_PATH" release-apks/gorotv-googletv.apk
+
+      - name: Subir artefactos APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apks
+          path: release-apks/
+
+  build-windows:
+    name: Compilar App de Windows
+    runs-on: windows-latest
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar dependencias Windows App
+        working-directory: platforms/windows
+        run: |
+          npm install
+
+      - name: Empaquetar ejecutable Windows
+        working-directory: platforms/windows
+        run: |
+          npm run package
+
+      - name: Comprimir paquete para distribución
+        shell: pwsh
+        run: |
+          mkdir release-windows
+          $distFolder = Get-ChildItem -Path "platforms/windows/dist" -Directory | Select-Object -First 1
+          if ($distFolder) {
+            Compress-Archive -Path "$($distFolder.FullName)\*" -DestinationPath "release-windows/gorotv-windows-x64.zip" -Force
+            # Copiar también el ejecutable directo
+            $exe = Get-ChildItem -Path $distFolder.FullName -Filter "*.exe" | Select-Object -First 1
+            if ($exe) {
+              Copy-Item -Path $exe.FullName -Destination "release-windows/gorotv-windows.exe" -Force
+            }
+          }
+
+      - name: Subir artefactos Windows
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-binaries
+          path: release-windows/
+
+  publish-release:
+    name: Publicar GitHub Release
+    needs: [build-android, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar APKs
+        uses: actions/download-artifact@v4
+        with:
+          name: android-apks
+          path: artifacts/
+
+      - name: Descargar App Windows
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-binaries
+          path: artifacts/
+
+      - name: Determinar Tag
+        id: get_tag
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.event.inputs.tag_name || 'v1.0.0' }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Crear GitHub Release y Subir Archivos
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get_tag.outputs.tag }}
+          name: "goroTV Release ${{ steps.get_tag.outputs.tag }}"
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/gorotv-firetv.apk
+            artifacts/gorotv-googletv.apk
+            artifacts/gorotv-windows.exe
+            artifacts/gorotv-windows-x64.zip
+          body: |
+            ## 🚀 goroTV Multiplataforma - Lanzamiento Oficial
+
+            Descargas disponibles:
+            - **Amazon Fire TV**: `gorotv-firetv.apk` (Instalar mediante la app Downloader)
+            - **Google TV / Android TV**: `gorotv-googletv.apk` (Instalar mediante sideload / gestor de archivos)
+            - **Windows**: `gorotv-windows.exe` / `gorotv-windows-x64.zip` (Aplicación de escritorio nativa)
+            - **Samsung Smart TV**: Disponible en Samsung App Store
+            - **LG webOS**: Disponible en LG Content Store
+            - **Reproductor Web**: [tv.gorofamily.com](http://tv.gorofamily.com)
+
+            ---
+            *goroTV Player no aloja contenidos. Soporte: support@gorofamily.com*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,17 @@
+{
+  "name": "gorotv-windows",
+  "productName": "goroTV Player",
+  "version": "1.0.0",
+  "description": "goroTV IPTV Player para Windows",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "package": "npx @electron/packager . \"goroTV Player\" --platform=win32 --arch=x64 --out=dist --icon=assets/icon.ico --overwrite"
+  },
+  "author": "goroTV",
+  "license": "MIT",
+  "devDependencies": {
+    "@electron/packager": "^20.3.0",
+    "electron": "^44.5.1"
+  }
+}

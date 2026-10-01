@@ -5,6 +5,7 @@ import { VhsLogo } from '../components/common/VhsLogo';
 // Actualiza estas URLs cuando tengas los APKs en tu servidor / GitHub Releases
 const APK_FIRE_TV_URL   = 'https://github.com/edmangomez/goroTV/releases/latest/download/gorotv-firetv.apk';
 const APK_GOOGLE_TV_URL = 'https://github.com/edmangomez/goroTV/releases/latest/download/gorotv-googletv.apk';
+const EXE_WINDOWS_URL   = '/downloads/gorotv-windows.zip';
 
 export const LandingView: React.FC = () => {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
@@ -139,6 +140,32 @@ export const LandingView: React.FC = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
                 Descargar APK — Google TV
+              </a>
+            </div>
+
+            {/* Windows PC */}
+            <div className="border border-[#1E293B] bg-[#0D1117] rounded-2xl p-6 flex flex-col gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-2xl">💻</span>
+                  <h3 className="text-xl font-bold">Windows (PC)</h3>
+                </div>
+                <span className="text-xs bg-purple-500/20 text-purple-400 border border-purple-500/30 px-2 py-0.5 rounded-full">Desktop App (.exe)</span>
+              </div>
+              <ol className="list-decimal list-inside text-gray-400 space-y-2 text-sm">
+                <li>Descarga la aplicación oficial para Windows</li>
+                <li>Ejecuta el archivo directamente sin instalaciones complejas</li>
+                <li>Streaming 4K acelerado por hardware sin límites de navegador</li>
+              </ol>
+              <a
+                href={EXE_WINDOWS_URL}
+                download
+                className="mt-auto flex items-center justify-center gap-2 w-full bg-gradient-to-r from-[#7B2FBE] to-[#00D4FF] hover:from-purple-600 hover:to-cyan-400 text-white font-bold py-3 px-4 rounded-xl transition-all transform hover:scale-105 shadow-[0_0_15px_rgba(123,47,190,0.4)]"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Descargar para Windows (.exe)
               </a>
             </div>
             <div className="border border-[#1E293B] bg-[#0D1117] rounded-2xl p-6">

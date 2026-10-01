@@ -28,6 +28,8 @@ services:
       - "80:80"
     depends_on:
       - api
+    volumes:
+      - /opt/gorotv/downloads:/usr/share/nginx/html/client/downloads
     networks:
       - gorotv-net
 
