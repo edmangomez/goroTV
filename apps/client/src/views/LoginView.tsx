@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Tv, ShieldCheck, Server, User, Lock, ArrowRight, Globe } from 'lucide-react';
+import { VhsLogo } from '../components/common/VhsLogo';
 import { ClientSession } from '../types';
 import { authApi } from '../services/authApi';
 import { XtreamApiClient } from '../services/xtreamApi';
@@ -83,11 +84,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   return (
     <div className="min-h-screen bg-background flex flex-col justify-center py-10 px-4 sm:px-6 lg:px-8 selection:bg-blue-600 selection:text-white">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center mb-6">
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 mx-auto flex items-center justify-center shadow-2xl shadow-blue-500/25 mb-4">
-          <Tv className="w-8 h-8 text-white" />
+        <div className="flex justify-center mb-3 drop-shadow-[0_0_15px_rgba(0,212,255,0.4)]">
+          <VhsLogo width={120} />
         </div>
         <h1 className="text-3xl font-black text-white tracking-tight">
-          goro<span className="text-blue-500">TV</span>
+          goro<span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00D4FF] to-[#7B2FBE]">TV</span>
         </h1>
         <p className="mt-1 text-xs sm:text-sm text-slate-400">
           Tu plataforma multiplataforma de televisión y streaming

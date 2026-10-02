@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Tv, Lock, User, ArrowRight, ShieldCheck, RefreshCw } from 'lucide-react';
+import { VhsLogo } from './components/common/VhsLogo';
 import { adminApi } from './services/adminApi';
 import { Admin, DashboardStats, Provider, User as ClientUser } from './types';
 import { Navbar } from './components/Navbar';
@@ -176,11 +177,14 @@ export const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-background flex flex-col justify-center py-12 sm:px-6 lg:px-8 selection:bg-blue-600 selection:text-white">
         <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 mx-auto flex items-center justify-center shadow-xl shadow-blue-500/20 mb-4">
-            <Tv className="w-8 h-8 text-white" />
+          <div className="flex justify-center mb-3 drop-shadow-[0_0_15px_rgba(0,212,255,0.4)]">
+            <VhsLogo width={120} />
           </div>
           <h1 className="text-3xl font-black text-white tracking-tight">
-            goro<span className="text-blue-500">TV</span>
+            goro<span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00D4FF] to-[#7B2FBE]">TV</span>
+            <span className="ml-2 text-xs uppercase font-bold tracking-widest px-2 py-0.5 rounded-full bg-cyan-500/10 text-[#00D4FF] border border-[#00D4FF]/30 align-middle">
+              Admin
+            </span>
           </h1>
           <p className="mt-1 text-sm text-slate-400">
             Panel Administrativo & Gestión de Suscripciones

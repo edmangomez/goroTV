@@ -1,5 +1,6 @@
 import React from 'react';
 import { Tv, Users, Server, LogOut, Activity, Key } from 'lucide-react';
+import { VhsLogo } from './common/VhsLogo';
 import { Admin } from '../types';
 
 interface NavbarProps {
@@ -26,13 +27,13 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="h-16 flex items-center justify-between gap-2">
           {/* Brand */}
           <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
-              <Tv className="w-5 h-5 text-white" />
+            <div className="flex items-center justify-center shrink-0 drop-shadow-[0_0_8px_rgba(0,212,255,0.4)]">
+              <VhsLogo width={44} />
             </div>
             <div>
               <span className="text-lg sm:text-xl font-black tracking-tight text-white flex items-center gap-1.5">
-                goro<span className="text-blue-500">TV</span>
-                <span className="text-[10px] sm:text-xs uppercase font-bold tracking-widest px-1.5 sm:px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                goro<span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00D4FF] to-[#7B2FBE]">TV</span>
+                <span className="text-[10px] sm:text-xs uppercase font-bold tracking-widest px-1.5 sm:px-2 py-0.5 rounded-full bg-cyan-500/10 text-[#00D4FF] border border-[#00D4FF]/30">
                   Admin
                 </span>
               </span>

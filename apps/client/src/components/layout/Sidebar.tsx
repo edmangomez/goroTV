@@ -1,5 +1,6 @@
 import React from 'react';
 import { Tv, Film, Clapperboard, Star, Search, Settings, LogOut, ChevronLeft, ChevronRight } from 'lucide-react';
+import { VhsLogo } from '../common/VhsLogo';
 import { ClientSession } from '../../types';
 
 export type TabType = 'live' | 'movies' | 'series' | 'favorites' | 'search' | 'settings';
@@ -40,12 +41,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div>
         <div className="h-16 flex items-center justify-between px-4 border-b border-surfaceLight/60">
           <div className="flex items-center gap-3 overflow-hidden">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20 flex-shrink-0">
-              <Tv className="w-5 h-5 text-white" />
+            <div className="flex items-center justify-center flex-shrink-0 drop-shadow-[0_0_8px_rgba(0,212,255,0.4)]">
+              <VhsLogo width={collapsed ? 40 : 44} />
             </div>
             {!collapsed && (
               <span className="text-xl font-black tracking-tight text-white">
-                goro<span className="text-blue-500">TV</span>
+                goro<span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00D4FF] to-[#7B2FBE]">TV</span>
               </span>
             )}
           </div>
