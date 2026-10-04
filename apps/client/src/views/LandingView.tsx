@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { VhsLogo } from '../components/common/VhsLogo';
 
-// ─── URLs de descarga de APK ────────────────────────────────────────────────
-// Actualiza estas URLs cuando tengas los APKs en tu servidor / GitHub Releases
+// ─── URLs y Códigos de descarga ─────────────────────────────────────────────
+const FIRE_TV_DOWNLOADER_CODE = '2348000';
 const APK_FIRE_TV_URL   = '/downloads/gorotv-firetv.apk';
 const APK_GOOGLE_TV_URL = '/downloads/gorotv-googletv.apk';
 const EXE_WINDOWS_URL   = '/downloads/gorotv-windows.zip';
@@ -94,29 +94,45 @@ export const LandingView: React.FC = () => {
           <h2 className="text-3xl font-bold text-center mb-12">Instalación por Plataforma</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {/* Fire TV */}
-            <div className="border border-[#1E293B] bg-[#0D1117] rounded-2xl p-6 flex flex-col gap-4">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
+            <div className="border border-orange-500/30 bg-[#0D1117] rounded-2xl p-6 flex flex-col gap-4 shadow-[0_0_20px_rgba(249,115,22,0.1)]">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
                   <span className="text-2xl">🔥</span>
                   <h3 className="text-xl font-bold">Amazon Fire TV</h3>
                 </div>
-                <span className="text-xs bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-0.5 rounded-full">Sideload APK</span>
+                <span className="text-xs bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2.5 py-0.5 rounded-full font-semibold">Downloader App</span>
               </div>
-              <ol className="list-decimal list-inside text-gray-400 space-y-2 text-sm">
-                <li>Activa "Fuentes desconocidas" en Configuración → Mi Fire TV</li>
-                <li>Abre la app <strong>Downloader</strong> desde la tienda</li>
-                <li>Escribe la URL directa: <span className="block mt-1 font-mono text-xs text-orange-400 bg-black/50 p-1.5 rounded select-all break-all">http://tv.gorofamily.com/downloads/gorotv-firetv.apk</span></li>
+
+              {/* Código Downloader destacado */}
+              <div className="bg-gradient-to-r from-orange-500/15 via-orange-500/10 to-amber-500/10 border border-orange-500/40 rounded-xl p-3.5 text-center">
+                <span className="text-xs uppercase tracking-wider text-orange-300 font-semibold block mb-1">
+                  ⚡ Código en App Downloader
+                </span>
+                <span className="text-3xl sm:text-4xl font-black text-orange-400 tracking-widest font-mono drop-shadow-[0_0_12px_rgba(249,115,22,0.4)]">
+                  {FIRE_TV_DOWNLOADER_CODE}
+                </span>
+                <p className="text-[11px] text-gray-400 mt-1">Escribe solo este número en el buscador de Downloader</p>
+              </div>
+
+              <ol className="list-decimal list-inside text-gray-300 space-y-2 text-sm">
+                <li>Abre la app <strong>Downloader</strong> en tu Fire TV</li>
+                <li>Escribe el código <strong className="text-orange-400 font-mono text-base">{FIRE_TV_DOWNLOADER_CODE}</strong> y pulsa <strong>Go</strong></li>
+                <li>Espera la descarga automática y presiona <strong>Instalar</strong></li>
               </ol>
-              <a
-                href={APK_FIRE_TV_URL}
-                download="gorotv-firetv.apk"
-                className="mt-auto flex items-center justify-center gap-2 w-full bg-orange-500 hover:bg-orange-400 text-white font-bold py-3 px-4 rounded-xl transition-all transform hover:scale-105 shadow-[0_0_15px_rgba(249,115,22,0.3)]"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                Descargar APK — Fire TV
-              </a>
+
+              <div className="mt-auto pt-2 border-t border-[#1E293B] flex flex-col gap-2">
+                <a
+                  href={APK_FIRE_TV_URL}
+                  download="gorotv-firetv.apk"
+                  className="flex items-center justify-center gap-2 w-full bg-orange-500 hover:bg-orange-400 text-white font-bold py-2.5 px-4 rounded-xl transition-all transform hover:scale-[1.02] shadow-[0_0_15px_rgba(249,115,22,0.3)] text-sm"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Descargar APK Directo
+                </a>
+                <span className="text-[11px] text-center text-gray-400 font-mono select-all break-all">https://tv.gorofamily.com/downloads/gorotv-firetv.apk</span>
+              </div>
             </div>
 
             {/* Google TV / Android TV */}
@@ -131,7 +147,7 @@ export const LandingView: React.FC = () => {
               <ol className="list-decimal list-inside text-gray-400 space-y-2 text-sm">
                 <li>Activa "Orígenes desconocidos" en Configuración → Seguridad</li>
                 <li>Instala un gestor de archivos o <strong>Downloader</strong></li>
-                <li>Descarga el APK o introduce: <span className="block mt-1 font-mono text-xs text-green-400 bg-black/50 p-1.5 rounded select-all break-all">http://tv.gorofamily.com/downloads/gorotv-googletv.apk</span></li>
+                <li>Descarga el APK o introduce: <span className="block mt-1 font-mono text-xs text-green-400 bg-black/50 p-1.5 rounded select-all break-all">https://tv.gorofamily.com/downloads/gorotv-googletv.apk</span></li>
               </ol>
               <a
                 href={APK_GOOGLE_TV_URL}
