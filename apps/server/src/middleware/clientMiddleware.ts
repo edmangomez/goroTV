@@ -13,13 +13,28 @@ export interface AuthenticatedClientRequest extends Request {
 }
 
 export function requireClient(req: AuthenticatedClientRequest, res: Response, next: NextFunction): void {
+  // 1. Acceso directo con credenciales Xtream Codes para probe y stream de audio bridge
+  const { directHost, directUser, directPass } = (req.query as Record<string, string>) || {};
+  if (directHost && directUser && directPass) {
+    if (typeof directHost === 'string' && (directHost.startsWith('http://') || directHost.startsWith('https://'))) {
+      return next();
+    }
+  }
+
+  // 2. Autenticación estándar por token JWT de cuenta de servicio
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  let token: string | undefined;
+
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7);
+  } else if (typeof req.query.token === 'string' && req.query.token) {
+    token = req.query.token;
+  }
+
+  if (!token) {
     res.status(401).json({ error: 'UNAUTHORIZED', message: 'Token de acceso requerido' });
     return;
   }
-
-  const token = authHeader.substring(7);
   const payload = verifyToken<ClientTokenPayload>(token);
 
   if (!payload || payload.role !== 'client') {

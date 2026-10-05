@@ -183,6 +183,9 @@ export const TracksModal: React.FC<TracksModalProps> = ({
   return (
     <>
       <div
+        role="dialog"
+        data-modal="true"
+        aria-modal="true"
         className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in"
         onClick={(e) => {
           if (e.target === e.currentTarget) onClose();
@@ -211,6 +214,7 @@ export const TracksModal: React.FC<TracksModalProps> = ({
             <button
               onClick={onClose}
               data-nav="true"
+              data-modal-close="true"
               className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-surfaceLight transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
               title="Cerrar"
             >

@@ -100,6 +100,7 @@ export const PlayerOSD: React.FC<PlayerOSDProps> = ({
           <button
             type="button"
             data-nav="true"
+            data-player-back="true"
             onClick={onBack}
             className="p-2.5 rounded-xl bg-black/60 hover:bg-black text-white border border-white/10 backdrop-blur-md transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-md"
             title="Volver"

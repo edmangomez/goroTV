@@ -3,7 +3,7 @@ import shaka from 'shaka-player';
 import Hls from 'hls.js';
 import mpegts from 'mpegts.js';
 import { Loader2, AlertCircle, RefreshCw, Tv, X, ShieldAlert } from 'lucide-react';
-import { MediaTrack, SubtitleStyle, Channel } from '../../types';
+import { MediaTrack, SubtitleStyle, Channel, ClientSession } from '../../types';
 import { PlayerOSD } from './PlayerOSD';
 import { TracksModal } from './TracksModal';
 import { formatLanguageName, formatAudioCodec, formatAudioChannels } from '../../utils/language';
@@ -12,6 +12,7 @@ import { DualAudioFetchStreamLoader } from '../../services/tsAudioLoader';
 import { isFullscreenActive, toggleAppFullscreen, addFullscreenChangeListener } from '../../utils/fullscreen';
 import { progressApi } from '../../services/progressApi';
 import { probeAudioTracks } from '../../utils/mp4Probe';
+import { buildVodBridgeUrl, fetchVodProbe } from '../../utils/vodStreamHelper';
 
 // Instalar polyfills de Shaka para compatibilidad en navegadores y Smart TVs (Tizen, webOS, Android TV)
 if (typeof window !== 'undefined') {
@@ -43,6 +44,9 @@ interface VideoPlayerProps {
   episodeNum?: number;
   episodeId?: number;
   posterUrl?: string;
+  session?: ClientSession;
+  containerExtension?: string;
+  totalDuration?: number;
   onProgress?: (progressSeconds: number, durationSeconds: number) => void;
 }
 
@@ -78,12 +82,17 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   episodeNum,
   episodeId,
   posterUrl,
+  session,
+  containerExtension,
+  totalDuration,
   onProgress,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hasSeekedInitialRef = useRef(false);
   const lastProgressReportRef = useRef<number>(0);
+  const seekOffsetRef = useRef<number>(initialTime || 0);
+  const [overrideBridgeUrl, setOverrideBridgeUrl] = useState<string | null>(null);
 
   // Instancias de reproductores activos
   const shakaPlayerRef = useRef<shaka.Player | null>(null);
@@ -160,9 +169,11 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   // Reiniciar al inicio cuando cambia la URL o lista de fallbacks
   useEffect(() => {
     setCurrentUrlIndex(0);
-  }, [streamUrl, fallbackUrlsKey]);
+    setOverrideBridgeUrl(null);
+    seekOffsetRef.current = initialTime || 0;
+  }, [streamUrl, fallbackUrlsKey, initialTime]);
 
-  const activeStreamUrl = allCandidateUrls[currentUrlIndex] || streamUrl;
+  const activeStreamUrl = overrideBridgeUrl || (allCandidateUrls[currentUrlIndex] || streamUrl);
 
   // Mostrar OSD y resetear temporizador de 4.5 segundos
   const showOSD = useCallback(() => {
@@ -973,7 +984,15 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   // Guardado de progreso centralizado (Netflix style)
   const saveCurrentProgress = useCallback((force = false) => {
     const video = videoRef.current;
-    if (!isLive && streamId && contentType && video && video.duration > 0 && video.currentTime > 3) {
+    const isBridge = activeStreamUrl.includes('/api/client/stream/vod');
+    const effectiveCurTime = isBridge
+      ? seekOffsetRef.current + (video ? video.currentTime : 0)
+      : (video ? video.currentTime : 0);
+    const effectiveDur = totalDuration && totalDuration > 0
+      ? totalDuration
+      : (duration > 0 ? duration : (video?.duration || 0));
+
+    if (!isLive && streamId && contentType && effectiveDur > 0 && effectiveCurTime > 3) {
       progressApi.saveProgress({
         contentType,
         streamId,
@@ -984,11 +1003,11 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         title,
         subtitle,
         posterUrl,
-        progressSeconds: Math.floor(video.currentTime),
-        durationSeconds: Math.floor(video.duration),
+        progressSeconds: Math.floor(effectiveCurTime),
+        durationSeconds: Math.floor(effectiveDur),
       }, force);
     }
-  }, [isLive, streamId, contentType, seriesId, seasonNum, episodeNum, episodeId, title, subtitle, posterUrl]);
+  }, [isLive, streamId, contentType, seriesId, seasonNum, episodeNum, episodeId, title, subtitle, posterUrl, activeStreamUrl, totalDuration, duration]);
 
   const handleBack = useCallback(() => {
     saveCurrentProgress(true);
@@ -1010,8 +1029,13 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       saveCurrentProgress(true);
     };
     const onTimeUpdate = () => {
-      const vTime = video.currentTime;
+      const isBridge = activeStreamUrl.includes('/api/client/stream/vod');
+      const vTime = isBridge ? seekOffsetRef.current + video.currentTime : video.currentTime;
       setCurrentTime(vTime);
+
+      const effectiveDur = totalDuration && totalDuration > 0
+        ? totalDuration
+        : (duration > 0 ? duration : (video.duration || 0));
 
       // Sincronización continua de subtítulos en pantalla (Overlay universal)
       if (activeCustomCuesRef.current.length > 0) {
@@ -1032,19 +1056,25 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       }
 
       const now = Date.now();
-      if (!isLive && streamId && contentType && video.duration > 0) {
+      if (!isLive && streamId && contentType && effectiveDur > 0) {
         if (now - lastProgressReportRef.current >= 5000) {
           lastProgressReportRef.current = now;
           saveCurrentProgress(false);
-          onProgress?.(vTime, video.duration);
+          onProgress?.(vTime, effectiveDur);
         }
       }
     };
     const onLoadedMetadata = () => {
-      setDuration(video.duration || 0);
+      if (totalDuration && totalDuration > 0) {
+        setDuration(totalDuration);
+      } else {
+        setDuration(video.duration || 0);
+      }
       video.volume = volume;
       video.muted = isMuted;
-      if (!hasSeekedInitialRef.current && initialTime && initialTime > 0) {
+
+      const isBridge = activeStreamUrl.includes('/api/client/stream/vod');
+      if (!isBridge && !hasSeekedInitialRef.current && initialTime && initialTime > 0) {
         try {
           video.currentTime = Math.min(initialTime, video.duration || initialTime);
           hasSeekedInitialRef.current = true;
@@ -1055,7 +1085,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     };
     const onCanPlay = () => {
       setLoading(false);
-      if (!hasSeekedInitialRef.current && initialTime && initialTime > 0) {
+      const isBridge = activeStreamUrl.includes('/api/client/stream/vod');
+      if (!isBridge && !hasSeekedInitialRef.current && initialTime && initialTime > 0) {
         try {
           video.currentTime = Math.min(initialTime, video.duration || initialTime);
           hasSeekedInitialRef.current = true;
@@ -1160,9 +1191,123 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const handleSeek = (seconds: number) => {
     const video = videoRef.current;
     if (!video) return;
+
+    const isAudioBridge = activeStreamUrl.includes('/api/client/stream/vod');
+    if (isAudioBridge) {
+      const targetSec = Math.max(0, Math.min(duration > 0 ? duration : 999999, seconds));
+      seekOffsetRef.current = targetSec;
+      setCurrentTime(targetSec);
+      setLoading(true);
+
+      try {
+        const u = new URL(activeStreamUrl, window.location.origin);
+        u.searchParams.set('ss', targetSec.toFixed(0));
+        setOverrideBridgeUrl(u.pathname + u.search);
+      } catch (err) {
+        console.warn('[VideoPlayer] Error actualizando ss en URL de bridge:', err);
+      }
+      showOSD();
+      return;
+    }
+
     video.currentTime = Math.max(0, Math.min(duration, seconds));
     showOSD();
   };
+
+  // Detección y sondeo de pistas multiaudio para VOD (.mkv / AC-3 / AAC)
+  useEffect(() => {
+    const isVod = contentType === 'movie' || contentType === 'series';
+    if (!isVod || !streamId) return;
+
+    let isCancelled = false;
+    const effectiveSession = session || (() => {
+      try {
+        const raw = localStorage.getItem('gorotv_client_session');
+        return raw ? JSON.parse(raw) : undefined;
+      } catch { return undefined; }
+    })();
+
+    if (!effectiveSession) return;
+
+    fetchVodProbe(effectiveSession, contentType, streamId, containerExtension || 'mkv')
+      .then((probe) => {
+        if (isCancelled || !probe) return;
+
+        if (probe.duration && probe.duration > 0 && (!duration || duration === 0)) {
+          setDuration(probe.duration);
+        }
+
+        if (probe.audioTracks && probe.audioTracks.length > 0) {
+          const isBridge = activeStreamUrl.includes('/api/client/stream/vod');
+          let currentTrackIdx = 0;
+          if (isBridge) {
+            try {
+              const u = new URL(activeStreamUrl, window.location.origin);
+              currentTrackIdx = parseInt(u.searchParams.get('audioTrack') || '0', 10) || 0;
+            } catch {}
+          } else if (probe.audioTracks.some((pt) => pt.needsTranscode)) {
+            // Si el stream directo tiene audio AC-3/EAC-3 sin decodificador en navegador/TV, conmutar de inmediato al bridge
+            console.info('[Player] Pistas de audio AC-3/EAC-3 detectadas. Activando automáticamente Audio Bridge estéreo...');
+            const curTime = (videoRef.current?.currentTime || 0) + seekOffsetRef.current || initialTime || 0;
+            seekOffsetRef.current = curTime;
+            const autoBridgeUrl = buildVodBridgeUrl(
+              effectiveSession,
+              contentType,
+              streamId,
+              containerExtension || 'mkv',
+              0,
+              curTime
+            );
+            setOverrideBridgeUrl(autoBridgeUrl);
+          }
+
+          const mappedTracks: MediaTrack[] = probe.audioTracks.map((pt) => ({
+            id: `bridge_${pt.id}`,
+            name: pt.displayName || (pt.language ? formatLanguageName(pt.language) : `Pista ${pt.id + 1}`),
+            lang: pt.language,
+            type: 'audio',
+            codec: pt.codec,
+            channels: pt.channels,
+            active: isBridge ? pt.id === currentTrackIdx : false,
+          }));
+
+          if (fallbackUrls && fallbackUrls.length > 0) {
+            mappedTracks.push({
+              id: 'direct_original',
+              name: 'Audio Original Directo (Sin transcodificar)',
+              lang: 'und',
+              type: 'audio',
+              active: !isBridge,
+            });
+          }
+
+          setAudioTracks(mappedTracks);
+          const activeTrack = mappedTracks.find((t) => t.active) || mappedTracks[0];
+          if (activeTrack) {
+            setSelectedAudioId(activeTrack.id);
+          }
+        }
+
+        if (probe.subtitleTracks && probe.subtitleTracks.length > 0) {
+          const embeddedSubs: MediaTrack[] = probe.subtitleTracks.map((st) => ({
+            id: `embedded_${st.id}`,
+            name: st.displayName || (st.language ? formatLanguageName(st.language) : `Subtítulo ${st.id + 1}`),
+            lang: st.language,
+            type: 'subtitle',
+            active: false,
+          }));
+          setSubtitleTracks((prev) => {
+            const others = prev.filter((t) => !String(t.id).startsWith('embedded_'));
+            return [...embeddedSubs, ...others];
+          });
+        }
+      })
+      .catch((err) => console.warn('[Player] Error al obtener pistas de audio VOD:', err));
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [session, contentType, streamId, containerExtension, activeStreamUrl, duration, fallbackUrls]);
 
   // Cargar y registrar subtítulo externo / online (.srt / .vtt)
   const handleLoadCustomSubtitle = async (track: MediaTrack) => {
@@ -1210,6 +1355,53 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   // Cambio dinámico de pista de audio
   const handleSelectAudioTrack = (trackId: number | string) => {
+    if (String(trackId).startsWith('bridge_')) {
+      const targetIdx = parseInt(String(trackId).replace('bridge_', ''), 10);
+      setSelectedAudioId(trackId);
+      setAudioTracks((prev) =>
+        prev.map((t) => ({
+          ...t,
+          active: String(t.id) === String(trackId),
+        }))
+      );
+
+      const effectiveSession = session || (() => {
+        try {
+          const raw = localStorage.getItem('gorotv_client_session');
+          return raw ? JSON.parse(raw) : undefined;
+        } catch { return undefined; }
+      })();
+
+      if (effectiveSession && streamId && (contentType === 'movie' || contentType === 'series')) {
+        const curSec = currentTime;
+        seekOffsetRef.current = curSec;
+        const newUrl = buildVodBridgeUrl(
+          effectiveSession,
+          contentType,
+          streamId,
+          containerExtension || 'mkv',
+          targetIdx,
+          curSec
+        );
+        setOverrideBridgeUrl(newUrl);
+      }
+      return;
+    }
+
+    if (trackId === 'direct_original') {
+      setSelectedAudioId('direct_original');
+      setAudioTracks((prev) =>
+        prev.map((t) => ({
+          ...t,
+          active: t.id === 'direct_original',
+        }))
+      );
+      if (fallbackUrls && fallbackUrls.length > 0) {
+        setOverrideBridgeUrl(fallbackUrls[0]);
+      }
+      return;
+    }
+
     if (currentEngineRef.current === 'mpegts') {
       const targetIdx = Number(trackId);
       setSelectedAudioId(trackId);

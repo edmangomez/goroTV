@@ -6,6 +6,7 @@ import { FavoriteCategoryItem, localDB } from '../services/db';
 import { VideoPlayer } from '../components/player/VideoPlayer';
 import { ContinueWatchingRow } from '../components/vod/ContinueWatchingRow';
 import { progressApi } from '../services/progressApi';
+import { isMkvOrNeedsBridge, buildVodBridgeUrl } from '../utils/vodStreamHelper';
 
 interface SeriesViewProps {
   session: ClientSession;
@@ -42,6 +43,8 @@ export const SeriesView: React.FC<SeriesViewProps> = ({ session, searchQuery }) 
     seasonNum?: number;
     episodeNum?: number;
     posterUrl?: string;
+    containerExtension?: string;
+    durationSecs?: number;
   } | null>(null);
 
   const [favorites, setFavorites] = useState<{ [id: number]: boolean }>({});
@@ -205,20 +208,44 @@ export const SeriesView: React.FC<SeriesViewProps> = ({ session, searchQuery }) 
   };
 
   const handlePlayEpisode = (series: Series, ep: Episode, initialTime = 0) => {
-    const ext = ep.container_extension || 'mp4';
+    const ext = ep.container_extension || 'mkv';
     const directUrl = xtream.getSeriesStreamUrl(Number(ep.id), ext);
     const seasonNumber = Number(ep.season || selectedSeason);
-    setPlayingEpisode({
-      seriesTitle: series.name,
-      episodeTitle: `T${seasonNumber}:E${ep.episode_num} - ${ep.title}`,
-      url: directUrl,
-      initialTime,
-      seriesId: Number(series.series_id),
-      episodeId: Number(ep.id),
-      seasonNum: seasonNumber,
-      episodeNum: Number(ep.episode_num),
-      posterUrl: ep.info?.movie_image || series.cover,
-    });
+    const needsBridge = isMkvOrNeedsBridge(ext);
+
+    if (needsBridge) {
+      const bridgeUrl = buildVodBridgeUrl(session, 'series', Number(ep.id), ext, 0, initialTime);
+      setPlayingEpisode({
+        seriesTitle: series.name,
+        episodeTitle: `T${seasonNumber}:E${ep.episode_num} - ${ep.title}`,
+        url: bridgeUrl,
+        fallbackUrls: [directUrl],
+        initialTime,
+        seriesId: Number(series.series_id),
+        episodeId: Number(ep.id),
+        seasonNum: seasonNumber,
+        episodeNum: Number(ep.episode_num),
+        posterUrl: ep.info?.movie_image || series.cover,
+        containerExtension: ext,
+        durationSecs: ep.info?.duration_secs,
+      });
+    } else {
+      const bridgeFallback = buildVodBridgeUrl(session, 'series', Number(ep.id), ext, 0, initialTime);
+      setPlayingEpisode({
+        seriesTitle: series.name,
+        episodeTitle: `T${seasonNumber}:E${ep.episode_num} - ${ep.title}`,
+        url: directUrl,
+        fallbackUrls: [bridgeFallback],
+        initialTime,
+        seriesId: Number(series.series_id),
+        episodeId: Number(ep.id),
+        seasonNum: seasonNumber,
+        episodeNum: Number(ep.episode_num),
+        posterUrl: ep.info?.movie_image || series.cover,
+        containerExtension: ext,
+        durationSecs: ep.info?.duration_secs,
+      });
+    }
   };
 
   // Continuidad inteligente de series: al completar (>90%) un episodio, avanzar al siguiente
@@ -300,6 +327,9 @@ export const SeriesView: React.FC<SeriesViewProps> = ({ session, searchQuery }) 
           episodeNum={playingEpisode.episodeNum}
           episodeId={playingEpisode.episodeId}
           posterUrl={playingEpisode.posterUrl}
+          session={session}
+          containerExtension={playingEpisode.containerExtension}
+          totalDuration={playingEpisode.durationSecs}
           onProgress={(progSec, durSec) => {
             if (durSec > 0 && progSec / durSec >= 0.9 && playingEpisode.seriesId) {
               handleEpisodeCompleted(
@@ -389,7 +419,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({ session, searchQuery }) 
                       </button>
                       <button
                         type="button"
-                        data-nav="true"
+                        tabIndex={-1}
                         onClick={(e) => toggleCategoryFavorite(fc.categoryId, fc.name, e)}
                         className="p-2 rounded-xl text-amber-400 hover:text-amber-300 hover:bg-surfaceLight/40 transition-colors flex-shrink-0"
                         title="Quitar de favoritas"
@@ -456,7 +486,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({ session, searchQuery }) 
                       </button>
                       <button
                         type="button"
-                        data-nav="true"
+                        tabIndex={-1}
                         onClick={(e) => toggleCategoryFavorite(cat.category_id, cat.category_name, e)}
                         className={`p-2 rounded-xl transition-colors flex-shrink-0 ${
                           isFav
@@ -535,7 +565,15 @@ export const SeriesView: React.FC<SeriesViewProps> = ({ session, searchQuery }) 
 
         {/* Modal "Ver todas las categorías" en Móvil/Tablet */}
         {mobileCatModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div
+            role="dialog"
+            data-modal="true"
+            aria-modal="true"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setMobileCatModalOpen(false);
+            }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          >
             <div className="bg-surface border border-surfaceLight rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden shadow-2xl">
               {/* Header Modal */}
               <div className="p-4 border-b border-surfaceLight flex items-center justify-between">
@@ -545,6 +583,8 @@ export const SeriesView: React.FC<SeriesViewProps> = ({ session, searchQuery }) 
                 </div>
                 <button
                   type="button"
+                  data-nav="true"
+                  data-modal-close="true"
                   onClick={() => setMobileCatModalOpen(false)}
                   className="p-1.5 rounded-xl bg-surfaceLight/60 text-slate-400 hover:text-white"
                 >
@@ -629,18 +669,22 @@ export const SeriesView: React.FC<SeriesViewProps> = ({ session, searchQuery }) 
         <ContinueWatchingRow
           contentType="series"
           onPlayItem={(item) => {
-            const ext = 'mp4';
+            const ext = 'mkv';
             const directUrl = xtream.getSeriesStreamUrl(item.streamId, ext);
+            const bridgeUrl = buildVodBridgeUrl(session, 'series', item.streamId, ext, 0, item.progressSeconds);
+            const needsBridge = isMkvOrNeedsBridge(ext);
             setPlayingEpisode({
               seriesTitle: item.title,
               episodeTitle: item.subtitle || 'Episodio',
-              url: directUrl,
+              url: needsBridge ? bridgeUrl : directUrl,
+              fallbackUrls: needsBridge ? [directUrl] : [bridgeUrl],
               initialTime: item.progressSeconds,
               seriesId: item.seriesId,
               episodeId: item.streamId,
               seasonNum: item.seasonNum,
               episodeNum: item.episodeNum,
               posterUrl: item.posterUrl,
+              containerExtension: ext,
             });
           }}
           onOpenDetail={(item) => {
@@ -747,13 +791,26 @@ export const SeriesView: React.FC<SeriesViewProps> = ({ session, searchQuery }) 
 
       {/* Modal de Detalle de Serie & Selector de Episodios */}
       {selectedSeries && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
-          <div className="bg-surface border border-surfaceLight rounded-3xl w-full max-w-3xl overflow-hidden shadow-2xl relative max-h-[90vh] flex flex-col">
+        <div
+          role="dialog"
+          data-modal="true"
+          onClick={() => {
+            setSelectedSeries(null);
+            setSeriesDetail(null);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-surface border border-surfaceLight rounded-3xl w-full max-w-3xl overflow-hidden shadow-2xl relative max-h-[90vh] flex flex-col"
+          >
             <button
               onClick={() => {
                 setSelectedSeries(null);
                 setSeriesDetail(null);
               }}
+              data-nav="true"
+              data-modal-close="true"
               className="absolute top-4 right-4 z-10 p-2 rounded-full bg-black/60 hover:bg-black text-white border border-white/10 transition-colors"
             >
               <X className="w-5 h-5" />

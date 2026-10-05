@@ -315,7 +315,7 @@ export const LiveTVView: React.FC<LiveTVViewProps> = ({ session, searchQuery }) 
                       </button>
                       <button
                         type="button"
-                        data-nav="true"
+                        tabIndex={-1}
                         onClick={(e) => toggleCategoryFavorite(fc.categoryId, fc.name, e)}
                         className="p-2 rounded-xl text-amber-400 hover:text-amber-300 hover:bg-surfaceLight/40 transition-colors flex-shrink-0"
                         title="Quitar de favoritas"
@@ -381,7 +381,7 @@ export const LiveTVView: React.FC<LiveTVViewProps> = ({ session, searchQuery }) 
                       </button>
                       <button
                         type="button"
-                        data-nav="true"
+                        tabIndex={-1}
                         onClick={(e) => toggleCategoryFavorite(cat.category_id, cat.category_name, e)}
                         className={`p-2 rounded-xl transition-colors flex-shrink-0 ${
                           isFav

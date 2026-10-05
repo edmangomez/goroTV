@@ -25,6 +25,8 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3001
 
+RUN apk add --no-cache ffmpeg
+
 COPY package.json package-lock.json ./
 COPY apps/server/package.json ./apps/server/
 

@@ -38,7 +38,15 @@ export const SubtitleStyleModal: React.FC<SubtitleStyleModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+    <div
+      role="dialog"
+      data-modal="true"
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       <div className="bg-surface border border-surfaceLight rounded-2xl w-full max-w-sm sm:max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="px-5 py-4 border-b border-surfaceLight flex items-center justify-between shrink-0">
@@ -49,6 +57,7 @@ export const SubtitleStyleModal: React.FC<SubtitleStyleModalProps> = ({
           <button
             onClick={onClose}
             data-nav="true"
+            data-modal-close="true"
             className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-surfaceLight transition-colors"
           >
             <X className="w-4 h-4" />

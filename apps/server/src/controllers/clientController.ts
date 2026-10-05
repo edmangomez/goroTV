@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { spawn } from 'child_process';
 import { db } from '../db/database.js';
 import { comparePassword, decryptText } from '../utils/crypto.js';
 import { signClientToken } from '../utils/jwt.js';
@@ -552,4 +553,264 @@ export function deleteClientProgress(req: AuthenticatedClientRequest, res: Respo
     res.status(500).json({ error: 'DB_ERROR', message: err.message });
   }
 }
+
+// --- BRIDGE DE AUDIO Y TRANSCODIFICACIÓN AL VUELO PARA VOD (.mkv / AC-3) ---
+
+function resolveVodUpstreamUrl(req: AuthenticatedClientRequest): { url: string; error?: string } {
+  const { type, streamId, extension, directHost, directUser, directPass, targetUrl } = req.query as Record<string, string>;
+
+  if (targetUrl && (targetUrl.startsWith('http://') || targetUrl.startsWith('https://'))) {
+    return { url: targetUrl };
+  }
+
+  const ext = extension || 'mkv';
+  const vodType = type === 'series' ? 'series' : 'movie';
+
+  if (directHost && directUser && directPass && streamId) {
+    const cleanHost = directHost.replace(/\/+$/, '');
+    return { url: `${cleanHost}/${vodType}/${directUser}/${directPass}/${streamId}.${ext}` };
+  }
+
+  if (req.clientUser && streamId) {
+    const stmt = db.prepare(`
+      SELECT p.host, p.username, p.password
+      FROM users u
+      JOIN providers p ON u.provider_id = p.id
+      WHERE u.id = ?
+    `);
+    const provider = stmt.get(req.clientUser.id) as any;
+    if (!provider) {
+      return { url: '', error: 'Proveedor no encontrado para este usuario' };
+    }
+    const decPassword = decryptText(provider.password);
+    const cleanHost = provider.host.replace(/\/+$/, '');
+    return { url: `${cleanHost}/${vodType}/${provider.username}/${decPassword}/${streamId}.${ext}` };
+  }
+
+  return { url: '', error: 'Parámetros insuficientes para resolver stream upstream' };
+}
+
+interface ProbeCacheItem {
+  timestamp: number;
+  data: {
+    audioTracks: Array<{
+      id: number;
+      codec: string;
+      channels?: number;
+      language: string;
+      displayName: string;
+      title?: string;
+      needsTranscode: boolean;
+    }>;
+    subtitleTracks: Array<{
+      id: number;
+      language: string;
+      title?: string;
+      displayName: string;
+    }>;
+    duration?: number;
+    container?: string;
+  };
+}
+
+const probeCache = new Map<string, ProbeCacheItem>();
+
+export async function probeVodStream(req: AuthenticatedClientRequest, res: Response): Promise<void> {
+  const resolved = resolveVodUpstreamUrl(req);
+  if (resolved.error || !resolved.url) {
+    res.status(400).json({ error: 'INVALID_STREAM_URL', message: resolved.error || 'URL inválida' });
+    return;
+  }
+
+  const cached = probeCache.get(resolved.url);
+  if (cached && Date.now() - cached.timestamp < 24 * 60 * 60 * 1000) {
+    res.json({ success: true, ...cached.data, cached: true });
+    return;
+  }
+
+  try {
+    const args = [
+      '-v', 'quiet',
+      '-print_format', 'json',
+      '-show_streams',
+      '-show_format',
+      resolved.url,
+    ];
+
+    const ffprobeProc = spawn('ffprobe', args);
+    let stdout = '';
+    let stderr = '';
+
+    ffprobeProc.stdout.on('data', (d) => { stdout += d.toString(); });
+    ffprobeProc.stderr.on('data', (d) => { stderr += d.toString(); });
+
+    const timeout = setTimeout(() => {
+      try { ffprobeProc.kill('SIGKILL'); } catch {}
+    }, 7000);
+
+    ffprobeProc.on('close', (code) => {
+      clearTimeout(timeout);
+      if (code !== 0 || !stdout) {
+        // Fallback genérico si ffprobe falla
+        res.json({
+          success: true,
+          audioTracks: [
+            { id: 0, codec: 'unknown', language: 'spa', displayName: 'Pista 1 (Español/Latino)', needsTranscode: true },
+            { id: 1, codec: 'unknown', language: 'eng', displayName: 'Pista 2 (Inglés)', needsTranscode: true }
+          ],
+          subtitleTracks: [],
+          fallback: true
+        });
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(stdout);
+        const streams = parsed.streams || [];
+        const audioStreams = streams.filter((s: any) => s.codec_type === 'audio');
+        const subtitleStreams = streams.filter((s: any) => s.codec_type === 'subtitle');
+
+        const audioTracks = audioStreams.map((s: any, idx: number) => {
+          const lang = (s.tags?.language || s.tags?.LANGUAGE || 'und').toLowerCase();
+          const title = s.tags?.title || s.tags?.TITLE || '';
+          const codec = (s.codec_name || '').toLowerCase();
+          const channels = s.channels || 2;
+          const isAc3 = codec === 'ac3' || codec === 'eac3' || codec === 'dts';
+
+          let friendlyLang = LANG_MAP[lang] || lang.toUpperCase();
+          if (friendlyLang === 'UND') friendlyLang = 'Original';
+
+          let displayName = title ? `${title} (${friendlyLang})` : friendlyLang;
+          if (isAc3) {
+            displayName += ` [AC-3 ${channels > 2 ? '5.1' : '2.0'}]`;
+          }
+
+          return {
+            id: idx,
+            codec,
+            channels,
+            language: lang,
+            title,
+            displayName,
+            needsTranscode: isAc3,
+          };
+        });
+
+        const subtitleTracks = subtitleStreams.map((s: any, idx: number) => {
+          const lang = (s.tags?.language || s.tags?.LANGUAGE || 'und').toLowerCase();
+          const title = s.tags?.title || s.tags?.TITLE || '';
+          let friendlyLang = LANG_MAP[lang] || lang.toUpperCase();
+          return {
+            id: idx,
+            language: lang,
+            title,
+            displayName: title ? `${title} (${friendlyLang})` : friendlyLang,
+          };
+        });
+
+        const duration = parseFloat(parsed.format?.duration || '0');
+        const container = parsed.format?.format_name || '';
+
+        const probeData = { audioTracks, subtitleTracks, duration, container };
+        probeCache.set(resolved.url, { timestamp: Date.now(), data: probeData });
+
+        res.json({ success: true, ...probeData });
+      } catch (parseErr: any) {
+        res.status(500).json({ error: 'PARSE_ERROR', message: parseErr.message });
+      }
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: 'FFPROBE_ERROR', message: err.message });
+  }
+}
+
+export function streamVodAudioBridge(req: AuthenticatedClientRequest, res: Response): void {
+  const resolved = resolveVodUpstreamUrl(req);
+  if (resolved.error || !resolved.url) {
+    res.status(400).json({ error: 'INVALID_STREAM_URL', message: resolved.error || 'URL inválida' });
+    return;
+  }
+
+  // Soporte para peticiones HEAD del reproductor
+  if (req.method === 'HEAD') {
+    res.writeHead(200, {
+      'Content-Type': 'video/mp4',
+      'Accept-Ranges': 'none',
+      'Access-Control-Allow-Origin': '*',
+    });
+    res.end();
+    return;
+  }
+
+  const audioTrackIdx = Math.max(0, parseInt(req.query.audioTrack as string, 10) || 0);
+  const seekSec = Math.max(0, parseFloat(req.query.ss as string) || 0);
+
+  const args: string[] = [
+    '-nostats',
+    '-loglevel', 'warning',
+  ];
+
+  if (seekSec > 0) {
+    args.push('-ss', seekSec.toFixed(2));
+  }
+
+  args.push(
+    '-i', resolved.url,
+    '-map', '0:v:0',
+    '-map', `0:a:${audioTrackIdx}?`,
+    '-c:v', 'copy',
+    '-c:a', 'aac',
+    '-b:a', '192k',
+    '-ac', '2',
+    '-movflags', 'frag_keyframe+empty_moov+default_base_moof',
+    '-f', 'mp4',
+    'pipe:1'
+  );
+
+  console.info(`[AudioBridge] Iniciando remux/transcode de audio (ss=${seekSec}s, track=${audioTrackIdx}) para: ${resolved.url}`);
+
+  const ffmpegProc = spawn('ffmpeg', args);
+
+  res.writeHead(200, {
+    'Content-Type': 'video/mp4',
+    'Cache-Control': 'no-cache, no-store',
+    'Access-Control-Allow-Origin': '*',
+    'Connection': 'keep-alive',
+  });
+
+  ffmpegProc.stdout.pipe(res);
+
+  ffmpegProc.stderr.on('data', (d) => {
+    const msg = d.toString();
+    if (msg.includes('Error') || msg.includes('fatal')) {
+      console.warn('[AudioBridge][FFmpeg]', msg.trim());
+    }
+  });
+
+  const cleanup = () => {
+    if (!ffmpegProc.killed) {
+      try {
+        ffmpegProc.kill('SIGTERM');
+        setTimeout(() => {
+          if (!ffmpegProc.killed) {
+            try { ffmpegProc.kill('SIGKILL'); } catch {}
+          }
+        }, 1500);
+      } catch {}
+    }
+  };
+
+  req.on('close', () => {
+    cleanup();
+  });
+
+  ffmpegProc.on('error', (err) => {
+    console.error('[AudioBridge] Error al invocar ffmpeg:', err);
+    if (!res.headersSent) {
+      res.status(502).json({ error: 'FFMPEG_SPAWN_ERROR', message: err.message });
+    }
+    cleanup();
+  });
+}
+
 

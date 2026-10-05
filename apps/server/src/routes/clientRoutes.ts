@@ -10,6 +10,8 @@ import {
   getClientProgress,
   saveClientProgress,
   deleteClientProgress,
+  probeVodStream,
+  streamVodAudioBridge,
 } from '../controllers/clientController.js';
 import { requireClient } from '../middleware/clientMiddleware.js';
 
@@ -34,5 +36,9 @@ clientRouter.get('/xtream', requireClient, proxyXtreamApi);
 clientRouter.get('/progress', requireClient, getClientProgress);
 clientRouter.post('/progress', requireClient, saveClientProgress);
 clientRouter.delete('/progress/:contentType/:streamId', requireClient, deleteClientProgress);
+
+// Bridge de audio al vuelo y probador de streams (.mkv / AC-3)
+clientRouter.get('/stream/probe', requireClient, probeVodStream);
+clientRouter.get('/stream/vod', requireClient, streamVodAudioBridge);
 
 

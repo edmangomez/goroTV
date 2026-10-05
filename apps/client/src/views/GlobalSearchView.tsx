@@ -24,6 +24,7 @@ import {
 } from '../types';
 import { XtreamApiClient } from '../services/xtreamApi';
 import { VideoPlayer } from '../components/player/VideoPlayer';
+import { isMkvOrNeedsBridge, buildVodBridgeUrl } from '../utils/vodStreamHelper';
 
 interface GlobalSearchViewProps {
   session: ClientSession;
@@ -33,8 +34,28 @@ type SearchFilter = 'all' | 'live' | 'movies' | 'series';
 
 type PlaybackSource =
   | { type: 'live'; title: string; streamUrl: string; fallbackUrls?: string[] }
-  | { type: 'movie'; title: string; streamUrl: string; fallbackUrls?: string[] }
-  | { type: 'series'; title: string; subtitle: string; streamUrl: string; fallbackUrls?: string[] };
+  | {
+      type: 'movie';
+      title: string;
+      streamUrl: string;
+      fallbackUrls?: string[];
+      streamId?: number;
+      containerExtension?: string;
+      durationSecs?: number;
+    }
+  | {
+      type: 'series';
+      title: string;
+      subtitle: string;
+      streamUrl: string;
+      fallbackUrls?: string[];
+      streamId?: number;
+      seriesId?: number;
+      seasonNum?: number;
+      episodeNum?: number;
+      containerExtension?: string;
+      durationSecs?: number;
+    };
 
 export const GlobalSearchView: React.FC<GlobalSearchViewProps> = ({ session }) => {
   const [query, setQuery] = useState('');
@@ -165,15 +186,33 @@ export const GlobalSearchView: React.FC<GlobalSearchViewProps> = ({ session }) =
   };
 
   const handlePlayMovieDirect = (movie: Movie) => {
-    const streamUrl = xtream.getMovieStreamUrl(
-      movie.stream_id,
-      movie.container_extension || 'mp4'
-    );
-    setPlaybackSource({
-      type: 'movie',
-      title: movie.name,
-      streamUrl,
-    });
+    const ext = movie.container_extension || 'mp4';
+    const directUrl = xtream.getMovieStreamUrl(movie.stream_id, ext);
+    const needsBridge = isMkvOrNeedsBridge(ext);
+
+    if (needsBridge) {
+      const bridgeUrl = buildVodBridgeUrl(session, 'movie', movie.stream_id, ext, 0, 0);
+      setPlaybackSource({
+        type: 'movie',
+        title: movie.name,
+        streamUrl: bridgeUrl,
+        fallbackUrls: [directUrl],
+        streamId: movie.stream_id,
+        containerExtension: ext,
+        durationSecs: movieDetail?.info?.duration_secs,
+      });
+    } else {
+      const bridgeFallback = buildVodBridgeUrl(session, 'movie', movie.stream_id, ext, 0, 0);
+      setPlaybackSource({
+        type: 'movie',
+        title: movie.name,
+        streamUrl: directUrl,
+        fallbackUrls: [bridgeFallback],
+        streamId: movie.stream_id,
+        containerExtension: ext,
+        durationSecs: movieDetail?.info?.duration_secs,
+      });
+    }
   };
 
   const handleOpenSeriesDetail = async (series: Series) => {
@@ -194,16 +233,42 @@ export const GlobalSearchView: React.FC<GlobalSearchViewProps> = ({ session }) =
   };
 
   const handlePlayEpisode = (series: Series, ep: Episode) => {
-    const streamUrl = xtream.getSeriesStreamUrl(
-      Number(ep.id),
-      ep.container_extension || 'mp4'
-    );
-    setPlaybackSource({
-      type: 'series',
-      title: series.name,
-      subtitle: `T${selectedSeason}:E${ep.episode_num} - ${ep.title}`,
-      streamUrl,
-    });
+    const ext = ep.container_extension || 'mp4';
+    const directUrl = xtream.getSeriesStreamUrl(Number(ep.id), ext);
+    const needsBridge = isMkvOrNeedsBridge(ext);
+    const seasonNumber = Number(ep.season || selectedSeason);
+
+    if (needsBridge) {
+      const bridgeUrl = buildVodBridgeUrl(session, 'series', Number(ep.id), ext, 0, 0);
+      setPlaybackSource({
+        type: 'series',
+        title: series.name,
+        subtitle: `T${seasonNumber}:E${ep.episode_num} - ${ep.title}`,
+        streamUrl: bridgeUrl,
+        fallbackUrls: [directUrl],
+        streamId: Number(ep.id),
+        seriesId: Number(series.series_id),
+        seasonNum: seasonNumber,
+        episodeNum: Number(ep.episode_num),
+        containerExtension: ext,
+        durationSecs: ep.info?.duration_secs,
+      });
+    } else {
+      const bridgeFallback = buildVodBridgeUrl(session, 'series', Number(ep.id), ext, 0, 0);
+      setPlaybackSource({
+        type: 'series',
+        title: series.name,
+        subtitle: `T${seasonNumber}:E${ep.episode_num} - ${ep.title}`,
+        streamUrl: directUrl,
+        fallbackUrls: [bridgeFallback],
+        streamId: Number(ep.id),
+        seriesId: Number(series.series_id),
+        seasonNum: seasonNumber,
+        episodeNum: Number(ep.episode_num),
+        containerExtension: ext,
+        durationSecs: ep.info?.duration_secs,
+      });
+    }
   };
 
   // Reproductor a pantalla completa
@@ -225,6 +290,13 @@ export const GlobalSearchView: React.FC<GlobalSearchViewProps> = ({ session }) =
           }
           isLive={playbackSource.type === 'live'}
           onBack={() => setPlaybackSource(null)}
+          session={session}
+          streamId={playbackSource.type !== 'live' ? playbackSource.streamId : undefined}
+          seriesId={playbackSource.type === 'series' ? playbackSource.seriesId : undefined}
+          seasonNum={playbackSource.type === 'series' ? playbackSource.seasonNum : undefined}
+          episodeNum={playbackSource.type === 'series' ? playbackSource.episodeNum : undefined}
+          containerExtension={playbackSource.type !== 'live' ? playbackSource.containerExtension : undefined}
+          totalDuration={playbackSource.type !== 'live' ? playbackSource.durationSecs : undefined}
         />
       </div>
     );

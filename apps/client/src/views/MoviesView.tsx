@@ -6,6 +6,7 @@ import { FavoriteCategoryItem, localDB } from '../services/db';
 import { VideoPlayer } from '../components/player/VideoPlayer';
 import { ContinueWatchingRow } from '../components/vod/ContinueWatchingRow';
 import { progressApi } from '../services/progressApi';
+import { isMkvOrNeedsBridge, buildVodBridgeUrl } from '../utils/vodStreamHelper';
 
 interface MoviesViewProps {
   session: ClientSession;
@@ -199,11 +200,25 @@ export const MoviesView: React.FC<MoviesViewProps> = ({ session, searchQuery }) 
   const handlePlayMovie = (movie: Movie, initialTime = 0) => {
     const ext = movie.container_extension || 'mp4';
     const directUrl = xtream.getMovieStreamUrl(movie.stream_id, ext);
-    setPlayingMovie({
-      movie,
-      url: directUrl,
-      initialTime,
-    });
+    const needsBridge = isMkvOrNeedsBridge(ext);
+
+    if (needsBridge) {
+      const bridgeUrl = buildVodBridgeUrl(session, 'movie', movie.stream_id, ext, 0, initialTime);
+      setPlayingMovie({
+        movie,
+        url: bridgeUrl,
+        fallbackUrls: [directUrl],
+        initialTime,
+      });
+    } else {
+      const bridgeFallback = buildVodBridgeUrl(session, 'movie', movie.stream_id, ext, 0, initialTime);
+      setPlayingMovie({
+        movie,
+        url: directUrl,
+        fallbackUrls: [bridgeFallback],
+        initialTime,
+      });
+    }
   };
 
   const toggleFavorite = async (movie: Movie) => {
@@ -242,6 +257,9 @@ export const MoviesView: React.FC<MoviesViewProps> = ({ session, searchQuery }) 
           contentType="movie"
           streamId={playingMovie.movie.stream_id}
           posterUrl={playingMovie.movie.stream_icon}
+          session={session}
+          containerExtension={playingMovie.movie.container_extension}
+          totalDuration={movieDetail?.info?.duration_secs}
         />
       </div>
     );
@@ -319,7 +337,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({ session, searchQuery }) 
                       </button>
                       <button
                         type="button"
-                        data-nav="true"
+                        tabIndex={-1}
                         onClick={(e) => toggleCategoryFavorite(fc.categoryId, fc.name, e)}
                         className="p-2 rounded-xl text-amber-400 hover:text-amber-300 hover:bg-surfaceLight/40 transition-colors flex-shrink-0"
                         title="Quitar de favoritas"
@@ -386,7 +404,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({ session, searchQuery }) 
                       </button>
                       <button
                         type="button"
-                        data-nav="true"
+                        tabIndex={-1}
                         onClick={(e) => toggleCategoryFavorite(cat.category_id, cat.category_name, e)}
                         className={`p-2 rounded-xl transition-colors flex-shrink-0 ${
                           isFav
@@ -465,7 +483,15 @@ export const MoviesView: React.FC<MoviesViewProps> = ({ session, searchQuery }) 
 
         {/* Modal "Ver todas las categorías" en Móvil/Tablet */}
         {mobileCatModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div
+            role="dialog"
+            data-modal="true"
+            aria-modal="true"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setMobileCatModalOpen(false);
+            }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          >
             <div className="bg-surface border border-surfaceLight rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden shadow-2xl">
               {/* Header Modal */}
               <div className="p-4 border-b border-surfaceLight flex items-center justify-between">
@@ -475,6 +501,8 @@ export const MoviesView: React.FC<MoviesViewProps> = ({ session, searchQuery }) 
                 </div>
                 <button
                   type="button"
+                  data-nav="true"
+                  data-modal-close="true"
                   onClick={() => setMobileCatModalOpen(false)}
                   className="p-1.5 rounded-xl bg-surfaceLight/60 text-slate-400 hover:text-white"
                 >
@@ -678,13 +706,26 @@ export const MoviesView: React.FC<MoviesViewProps> = ({ session, searchQuery }) 
 
       {/* Modal de Detalle de Película */}
       {selectedMovie && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+        <div
+          role="dialog"
+          data-modal="true"
+          aria-modal="true"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setSelectedMovie(null);
+              setMovieDetail(null);
+            }
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in"
+        >
           <div className="bg-surface border border-surfaceLight rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl relative">
             <button
               onClick={() => {
                 setSelectedMovie(null);
                 setMovieDetail(null);
               }}
+              data-nav="true"
+              data-modal-close="true"
               className="absolute top-4 right-4 z-10 p-2 rounded-full bg-black/60 hover:bg-black text-white border border-white/10 transition-colors"
             >
               <X className="w-5 h-5" />

@@ -4,6 +4,7 @@ import { FavoriteItem, localDB } from '../services/db';
 import { ClientSession } from '../types';
 import { XtreamApiClient } from '../services/xtreamApi';
 import { VideoPlayer } from '../components/player/VideoPlayer';
+import { isMkvOrNeedsBridge, buildVodBridgeUrl } from '../utils/vodStreamHelper';
 
 interface FavoritesViewProps {
   session: ClientSession;
@@ -13,7 +14,15 @@ interface FavoritesViewProps {
 export const FavoritesView: React.FC<FavoritesViewProps> = ({ session, searchQuery }) => {
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [filterType, setFilterType] = useState<'all' | 'live' | 'movie' | 'series'>('all');
-  const [playingItem, setPlayingItem] = useState<{ title: string; url: string; isLive: boolean } | null>(null);
+  const [playingItem, setPlayingItem] = useState<{
+    title: string;
+    url: string;
+    fallbackUrls?: string[];
+    isLive: boolean;
+    contentType?: 'movie' | 'series';
+    streamId?: number;
+    containerExtension?: string;
+  } | null>(null);
 
   const xtream = new XtreamApiClient(session.provider);
 
@@ -35,13 +44,33 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({ session, searchQue
   const handlePlay = (item: FavoriteItem) => {
     if (item.type === 'live') {
       const url = xtream.getLiveStreamUrl(item.streamId);
-      setPlayingItem({ title: item.name, url, isLive: true });
+      setPlayingItem({ title: item.name, url, isLive: true, streamId: item.streamId });
     } else if (item.type === 'movie') {
-      const url = xtream.getMovieStreamUrl(item.streamId);
-      setPlayingItem({ title: item.name, url, isLive: false });
+      const ext = 'mp4';
+      const directUrl = xtream.getMovieStreamUrl(item.streamId, ext);
+      const bridgeUrl = buildVodBridgeUrl(session, 'movie', item.streamId, ext);
+      setPlayingItem({
+        title: item.name,
+        url: directUrl,
+        fallbackUrls: [bridgeUrl],
+        isLive: false,
+        contentType: 'movie',
+        streamId: item.streamId,
+        containerExtension: ext,
+      });
     } else {
-      const url = xtream.getSeriesStreamUrl(item.streamId);
-      setPlayingItem({ title: item.name, url, isLive: false });
+      const ext = 'mkv';
+      const directUrl = xtream.getSeriesStreamUrl(item.streamId, ext);
+      const bridgeUrl = buildVodBridgeUrl(session, 'series', item.streamId, ext);
+      setPlayingItem({
+        title: item.name,
+        url: bridgeUrl,
+        fallbackUrls: [directUrl],
+        isLive: false,
+        contentType: 'series',
+        streamId: item.streamId,
+        containerExtension: ext,
+      });
     }
   };
 
@@ -57,8 +86,13 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({ session, searchQue
       <div className="fixed inset-0 z-50 bg-black">
         <VideoPlayer
           streamUrl={playingItem.url}
+          fallbackUrls={playingItem.fallbackUrls}
           title={playingItem.title}
           isLive={playingItem.isLive}
+          contentType={playingItem.contentType}
+          streamId={playingItem.streamId}
+          containerExtension={playingItem.containerExtension}
+          session={session}
           onBack={() => setPlayingItem(null)}
         />
       </div>
