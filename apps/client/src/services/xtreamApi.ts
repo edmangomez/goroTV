@@ -55,9 +55,12 @@ export class XtreamApiClient {
   private async fetchData(actionParams: string): Promise<any> {
     const directUrl = actionParams ? `${this.getBaseUrl()}&${actionParams}` : this.getBaseUrl();
 
-    // 1. Intento Directo
+    // 1. Intento Directo (con timeout de 4s para no congelar la app si hay bloqueo o lentitud)
     try {
-      const res = await fetch(directUrl);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch(directUrl, { signal: controller.signal });
+      clearTimeout(timeoutId);
       if (res.ok) {
         return await res.json();
       }
@@ -65,14 +68,17 @@ export class XtreamApiClient {
       console.warn('[XtreamApi] Fetch directo no disponible:', err);
     }
 
-    // 2. Si el host original tenía http:// y estamos en https://, probar con https:// sin puerto
+    // 2. Si el host original tenía http:// y estamos en https://, probar con https:// sin puerto (timeout 4s)
     if (typeof window !== 'undefined' && window.location.protocol === 'https:' && this.host.startsWith('http://')) {
       try {
         const httpsHost = this.host.replace('http://', 'https://').replace(/:\d+$/, '');
         const fallbackUrl = actionParams
           ? `${httpsHost}/player_api.php?username=${encodeURIComponent(this.user)}&password=${encodeURIComponent(this.pass)}&${actionParams}`
           : `${httpsHost}/player_api.php?username=${encodeURIComponent(this.user)}&password=${encodeURIComponent(this.pass)}`;
-        const res2 = await fetch(fallbackUrl);
+        const controller2 = new AbortController();
+        const timeoutId2 = setTimeout(() => controller2.abort(), 4000);
+        const res2 = await fetch(fallbackUrl, { signal: controller2.signal });
+        clearTimeout(timeoutId2);
         if (res2.ok) {
           this.host = httpsHost; // Guardar el host HTTPS validado
           return await res2.json();
@@ -88,14 +94,22 @@ export class XtreamApiClient {
         const saved = localStorage.getItem('gorotv_client_session');
         if (saved) {
           const session = JSON.parse(saved);
+          const headers: Record<string, string> = {};
           if (session?.token) {
-            const proxyUrl = actionParams ? `/api/client/xtream?${actionParams}` : '/api/client/xtream';
-            const proxyRes = await fetch(proxyUrl, {
-              headers: { Authorization: `Bearer ${session.token}` },
-            });
-            if (proxyRes.ok) {
-              return await proxyRes.json();
-            }
+            headers['Authorization'] = `Bearer ${session.token}`;
+          }
+          let proxyUrl = actionParams ? `/api/client/xtream?${actionParams}` : '/api/client/xtream';
+          // Si es cuenta directa o faltan credenciales en el token, pasar credenciales en query
+          if (this.host && this.user && this.pass) {
+            const sep = proxyUrl.includes('?') ? '&' : '?';
+            proxyUrl += `${sep}directHost=${encodeURIComponent(this.host)}&directUser=${encodeURIComponent(this.user)}&directPass=${encodeURIComponent(this.pass)}`;
+          }
+          const controller3 = new AbortController();
+          const timeoutId3 = setTimeout(() => controller3.abort(), 12000);
+          const proxyRes = await fetch(proxyUrl, { headers, signal: controller3.signal });
+          clearTimeout(timeoutId3);
+          if (proxyRes.ok) {
+            return await proxyRes.json();
           }
         }
       } catch (err3) {

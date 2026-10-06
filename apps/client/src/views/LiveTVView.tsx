@@ -1,10 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Tv, Star, Loader2, Play, Search, Layers, X } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Tv, Star, Loader2, Play, Search, Layers, X, RotateCcw } from 'lucide-react';
 import { Category, Channel, EPGProgramme, ClientSession } from '../types';
 import { XtreamApiClient } from '../services/xtreamApi';
 import { FavoriteCategoryItem, localDB } from '../services/db';
 import { VideoPlayer } from '../components/player/VideoPlayer';
 import { registerModal } from '../hooks/useSpatialNav';
+
+// Caché en memoria para carga ultrarrápida (0ms) entre cambios de pestaña y navegación
+const liveChannelsCache = new Map<string, Channel[]>();
+let liveCategoriesCache: Category[] | null = null;
 
 interface LiveTVViewProps {
   session: ClientSession;
@@ -12,23 +16,54 @@ interface LiveTVViewProps {
 }
 
 export const LiveTVView: React.FC<LiveTVViewProps> = ({ session, searchQuery }) => {
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<Category[]>(() => liveCategoriesCache || []);
   const [favCategories, setFavCategories] = useState<FavoriteCategoryItem[]>([]);
   const [catSearchQuery, setCatSearchQuery] = useState('');
-  const [selectedCatId, setSelectedCatId] = useState<string>('');
+  const [selectedCatId, setSelectedCatId] = useState<string>(() => {
+    try {
+      return localStorage.getItem('gorotv_last_live_cat') || '';
+    } catch {
+      return '';
+    }
+  });
   const [mobileCatModalOpen, setMobileCatModalOpen] = useState(false);
-  const [channels, setChannels] = useState<Channel[]>([]);
+  const [channels, setChannels] = useState<Channel[]>(() => {
+    try {
+      const savedCat = localStorage.getItem('gorotv_last_live_cat');
+      if (savedCat && liveChannelsCache.has(savedCat)) {
+        return liveChannelsCache.get(savedCat)!;
+      }
+    } catch {}
+    return [];
+  });
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
   const [activePlaybackChannel, setActivePlaybackChannel] = useState<Channel | null>(null);
   const [isFullscreenPlayer, setIsFullscreenPlayer] = useState(false);
   const [channelEPG, setChannelEPG] = useState<{ [id: number]: EPGProgramme | null }>({});
   const [favorites, setFavorites] = useState<{ [id: number]: boolean }>({});
-  const [loadingCats, setLoadingCats] = useState(true);
+  const [loadingCats, setLoadingCats] = useState(() => !liveCategoriesCache || liveCategoriesCache.length === 0);
   const [loadingChannels, setLoadingChannels] = useState(false);
+  const [channelError, setChannelError] = useState(false);
   const [visibleCount, setVisibleCount] = useState(40);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
-  const xtream = new XtreamApiClient(session.provider);
+  const xtream = useMemo(
+    () => new XtreamApiClient(session.provider),
+    [session.provider?.host, session.provider?.username, session.provider?.password]
+  );
+
+  // Selector de categoría con guardado persistente y cambio instantáneo (0ms)
+  const handleSelectCategory = (catId: string) => {
+    setSelectedCatId(catId);
+    try {
+      localStorage.setItem('gorotv_last_live_cat', catId);
+    } catch {}
+    if (liveChannelsCache.has(catId)) {
+      setChannels(liveChannelsCache.get(catId)!);
+      setChannelError(false);
+      setVisibleCount(40);
+    }
+  };
 
   // Registro del modal de categorías en la pila de modales (Back / D-Pad)
   useEffect(() => {
@@ -41,7 +76,9 @@ export const LiveTVView: React.FC<LiveTVViewProps> = ({ session, searchQuery }) 
   useEffect(() => {
     let isMounted = true;
     async function loadInitial() {
-      setLoadingCats(true);
+      if (!liveCategoriesCache || liveCategoriesCache.length === 0) {
+        setLoadingCats(true);
+      }
       try {
         const [cats, favs, catFavs] = await Promise.all([
           xtream.getLiveCategories(),
@@ -50,19 +87,29 @@ export const LiveTVView: React.FC<LiveTVViewProps> = ({ session, searchQuery }) 
         ]);
 
         if (!isMounted) return;
-        setCategories(cats);
+        if (cats && cats.length > 0) {
+          liveCategoriesCache = cats;
+          setCategories(cats);
+        }
         setFavCategories(catFavs);
 
         const favMap: { [id: number]: boolean } = {};
         favs.forEach((f) => (favMap[f.streamId] = true));
         setFavorites(favMap);
 
-        // Seleccionar automáticamente la primera categoría disponible para carga ultrarrápida (no 'all')
-        if (catFavs.length > 0) {
-          setSelectedCatId(catFavs[0].categoryId);
-        } else if (cats.length > 0) {
-          setSelectedCatId(cats[0].category_id);
-        }
+        // Si no hay categoría seleccionada o no es válida, seleccionar la primera disponible
+        setSelectedCatId((prev) => {
+          if (prev && (prev === 'all' || cats.some((c) => c.category_id === prev))) {
+            return prev;
+          }
+          const chosen = catFavs.length > 0 ? catFavs[0].categoryId : (cats.length > 0 ? cats[0].category_id : '');
+          if (chosen) {
+            try {
+              localStorage.setItem('gorotv_last_live_cat', chosen);
+            } catch {}
+          }
+          return chosen;
+        });
       } catch (err) {
         console.error('Error al cargar categorías:', err);
       } finally {
@@ -73,24 +120,44 @@ export const LiveTVView: React.FC<LiveTVViewProps> = ({ session, searchQuery }) 
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [xtream]);
 
   // Cargar canales cuando cambia la categoría seleccionada
   useEffect(() => {
     if (!selectedCatId) return;
     let isMounted = true;
-    async function fetchChannels() {
+
+    // Si ya los tenemos en memoria, mostrarlos de inmediato sin esperar
+    if (liveChannelsCache.has(selectedCatId)) {
+      const cached = liveChannelsCache.get(selectedCatId)!;
+      setChannels(cached);
+      setChannelError(false);
+      if (cached.length > 0) {
+        setSelectedChannel((prev) => prev || cached[0]);
+      }
+    } else {
       setLoadingChannels(true);
+    }
+
+    async function fetchChannels() {
       try {
         const list = await xtream.getLiveStreams(selectedCatId);
         if (!isMounted) return;
-        setChannels(list);
-        setVisibleCount(40);
-        if (list.length > 0) {
-          setSelectedChannel(list[0]);
+        if (Array.isArray(list) && list.length > 0) {
+          liveChannelsCache.set(selectedCatId, list);
+          setChannels(list);
+          setChannelError(false);
+          setVisibleCount(40);
+          setSelectedChannel((prev) => (prev && list.some(c => c.stream_id === prev.stream_id)) ? prev : list[0]);
+        } else if (!liveChannelsCache.has(selectedCatId)) {
+          setChannels(Array.isArray(list) ? list : []);
+          setChannelError(!Array.isArray(list));
         }
       } catch (err) {
         console.error('Error al cargar canales:', err);
+        if (isMounted && !liveChannelsCache.has(selectedCatId)) {
+          setChannelError(true);
+        }
       } finally {
         if (isMounted) setLoadingChannels(false);
       }
@@ -99,7 +166,7 @@ export const LiveTVView: React.FC<LiveTVViewProps> = ({ session, searchQuery }) 
     return () => {
       isMounted = false;
     };
-  }, [selectedCatId]);
+  }, [selectedCatId, xtream]);
 
   // Cargar EPG del canal enfocado
   useEffect(() => {
@@ -314,7 +381,7 @@ export const LiveTVView: React.FC<LiveTVViewProps> = ({ session, searchQuery }) 
                         data-nav="true"
                         data-nav-col="categories"
                         data-nav-selected={isSelected ? 'true' : undefined}
-                        onClick={() => setSelectedCatId(fc.categoryId)}
+                        onClick={() => handleSelectCategory(fc.categoryId)}
                         className={`flex-1 px-3 py-2 rounded-xl text-xs font-bold text-left transition-all truncate ${
                           isSelected
                             ? 'bg-blue-600 text-white shadow-md'
@@ -346,7 +413,7 @@ export const LiveTVView: React.FC<LiveTVViewProps> = ({ session, searchQuery }) 
               data-nav="true"
               data-nav-col="categories"
               data-nav-selected={selectedCatId === 'all' ? 'true' : undefined}
-              onClick={() => setSelectedCatId('all')}
+              onClick={() => handleSelectCategory('all')}
               className={`w-full px-3 py-2 rounded-xl text-xs font-bold text-left transition-all flex items-center justify-between whitespace-nowrap mb-1 ${
                 selectedCatId === 'all'
                   ? 'bg-blue-600 text-white shadow-md'
@@ -384,7 +451,7 @@ export const LiveTVView: React.FC<LiveTVViewProps> = ({ session, searchQuery }) 
                         data-nav="true"
                         data-nav-col="categories"
                         data-nav-selected={isSelected ? 'true' : undefined}
-                        onClick={() => setSelectedCatId(cat.category_id)}
+                        onClick={() => handleSelectCategory(cat.category_id)}
                         className={`flex-1 px-3 py-2 rounded-xl text-xs font-bold text-left transition-all truncate ${
                           isSelected
                             ? 'bg-blue-600 text-white shadow-md'
@@ -422,7 +489,7 @@ export const LiveTVView: React.FC<LiveTVViewProps> = ({ session, searchQuery }) 
             data-nav="true"
             data-nav-col="categories"
             data-nav-selected={selectedCatId === 'all' ? 'true' : undefined}
-            onClick={() => setSelectedCatId('all')}
+            onClick={() => handleSelectCategory('all')}
             className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all border ${
               selectedCatId === 'all'
                 ? 'bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-500/20'
@@ -442,7 +509,7 @@ export const LiveTVView: React.FC<LiveTVViewProps> = ({ session, searchQuery }) 
                 data-nav="true"
                 data-nav-col="categories"
                 data-nav-selected={isSelected ? 'true' : undefined}
-                onClick={() => setSelectedCatId(fc.categoryId)}
+                onClick={() => handleSelectCategory(fc.categoryId)}
                 className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1 border ${
                   isSelected
                     ? 'bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-500/20'
@@ -465,7 +532,7 @@ export const LiveTVView: React.FC<LiveTVViewProps> = ({ session, searchQuery }) 
                 data-nav="true"
                 data-nav-col="categories"
                 data-nav-selected={isSelected ? 'true' : undefined}
-                onClick={() => setSelectedCatId(cat.category_id)}
+                onClick={() => handleSelectCategory(cat.category_id)}
                 className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all border ${
                   isSelected
                     ? 'bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-500/20'
@@ -521,7 +588,7 @@ export const LiveTVView: React.FC<LiveTVViewProps> = ({ session, searchQuery }) 
               <button
                 type="button"
                 onClick={() => {
-                  setSelectedCatId('all');
+                  handleSelectCategory('all');
                   setMobileCatModalOpen(false);
                 }}
                 className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold text-left transition-all ${
@@ -541,7 +608,7 @@ export const LiveTVView: React.FC<LiveTVViewProps> = ({ session, searchQuery }) 
                     <button
                       type="button"
                       onClick={() => {
-                        setSelectedCatId(cat.category_id);
+                        handleSelectCategory(cat.category_id);
                         setMobileCatModalOpen(false);
                       }}
                       className={`flex-1 px-3 py-2.5 rounded-xl text-xs font-bold text-left transition-all truncate ${
@@ -574,17 +641,42 @@ export const LiveTVView: React.FC<LiveTVViewProps> = ({ session, searchQuery }) 
         onScroll={handleChannelScroll}
         className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-1.5 focus:outline-none"
       >
-        {loadingChannels ? (
+        {loadingChannels && channels.length === 0 ? (
           <div className="h-64 flex flex-col items-center justify-center text-slate-500">
             <Loader2 className="w-8 h-8 text-blue-500 animate-spin mb-2" />
             <span className="text-xs font-medium">Cargando canales al instante...</span>
           </div>
         ) : filteredChannels.length === 0 ? (
           <div className="h-64 flex flex-col items-center justify-center text-slate-500 text-xs">
-            No se encontraron canales en esta categoría.
+            {channelError ? (
+              <div className="flex flex-col items-center gap-2">
+                <span className="text-red-400 font-medium">No se pudieron cargar los canales de esta categoría.</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectedCatId) {
+                      liveChannelsCache.delete(selectedCatId);
+                      handleSelectCategory(selectedCatId);
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reintentar</span>
+                </button>
+              </div>
+            ) : (
+              <span>No se encontraron canales en esta categoría.</span>
+            )}
           </div>
         ) : (
           <>
+            {loadingChannels && (
+              <div className="sticky top-0 z-10 mb-2 py-1 px-3 bg-blue-600/20 border border-blue-500/30 text-blue-400 rounded-xl text-xs flex items-center justify-center gap-2 backdrop-blur-sm shadow">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>Actualizando canales...</span>
+              </div>
+            )}
             {displayedChannels.map((channel, idx) => {
               const isSelected = selectedChannel?.stream_id === channel.stream_id;
               const isPlayingNow = activePlaybackChannel?.stream_id === channel.stream_id;

@@ -380,42 +380,75 @@ export async function downloadSubtitle(req: Request, res: Response): Promise<voi
   }
 }
 
+// In-memory cache para respuestas de metadatos Xtream (5 minutos TTL)
+const xtreamApiCache = new Map<string, { timestamp: number; data: any }>();
+
 // Proxy transparente para APIs de metadatos de Xtream Codes (evita Mixed Content en HTTPS)
 export async function proxyXtreamApi(req: AuthenticatedClientRequest, res: Response): Promise<void> {
-  const userId = req.clientUser!.id;
-  const stmt = db.prepare(`
-    SELECT p.host, p.username, p.password
-    FROM users u
-    JOIN providers p ON u.provider_id = p.id
-    WHERE u.id = ?
-  `);
-  const provider = stmt.get(userId) as any;
-  if (!provider) {
-    res.status(404).json({ error: 'PROVIDER_NOT_FOUND', message: 'Proveedor no encontrado' });
+  let host = '';
+  let username = '';
+  let password = '';
+
+  const { directHost, directUser, directPass } = req.query as Record<string, string>;
+  if (directHost && directUser && directPass) {
+    host = directHost;
+    username = directUser;
+    password = directPass;
+  } else if (req.clientUser?.id) {
+    const userId = req.clientUser.id;
+    const stmt = db.prepare(`
+      SELECT p.host, p.username, p.password
+      FROM users u
+      JOIN providers p ON u.provider_id = p.id
+      WHERE u.id = ?
+    `);
+    const provider = stmt.get(userId) as any;
+    if (!provider) {
+      res.status(404).json({ error: 'PROVIDER_NOT_FOUND', message: 'Proveedor no encontrado' });
+      return;
+    }
+    host = provider.host;
+    username = provider.username;
+    password = decryptText(provider.password);
+  } else {
+    res.status(401).json({ error: 'UNAUTHORIZED', message: 'Autenticación o credenciales requeridas' });
     return;
   }
 
-  const decPassword = decryptText(provider.password);
-
   const queryParams = new URLSearchParams();
   for (const [key, value] of Object.entries(req.query)) {
-    if (typeof value === 'string') {
+    if (typeof value === 'string' && !['directHost', 'directUser', 'directPass'].includes(key)) {
       queryParams.set(key, value);
     }
   }
 
-  queryParams.set('username', provider.username);
-  queryParams.set('password', decPassword);
+  queryParams.set('username', username);
+  queryParams.set('password', password);
 
-  const targetUrl = `${provider.host}/player_api.php?${queryParams.toString()}`;
+  const cleanHost = host.replace(/\/+$/, '');
+  const targetUrl = `${cleanHost}/player_api.php?${queryParams.toString()}`;
+
+  // Verificar caché en memoria
+  const cached = xtreamApiCache.get(targetUrl);
+  if (cached && Date.now() - cached.timestamp < 300_000) {
+    res.json(cached.data);
+    return;
+  }
 
   try {
-    const upstreamRes = await fetch(targetUrl, { signal: AbortSignal.timeout(15000) });
+    const upstreamRes = await fetch(targetUrl, {
+      signal: AbortSignal.timeout(12000),
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*',
+      },
+    });
     if (!upstreamRes.ok) {
-      res.status(upstreamRes.status).json({ error: 'UPSTREAM_ERROR' });
+      res.status(upstreamRes.status).json({ error: 'UPSTREAM_ERROR', status: upstreamRes.status });
       return;
     }
     const data = await upstreamRes.json();
+    xtreamApiCache.set(targetUrl, { timestamp: Date.now(), data });
     res.json(data);
   } catch (err: any) {
     console.error('[XtreamProxy] Error al consultar proveedor:', err.message);
