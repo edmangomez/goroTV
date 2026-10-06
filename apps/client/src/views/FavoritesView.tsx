@@ -113,6 +113,8 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({ session, searchQue
             key={tab.id}
             type="button"
             data-nav="true"
+            data-nav-col="categories"
+            data-nav-selected={filterType === tab.id ? 'true' : undefined}
             onClick={() => setFilterType(tab.id as any)}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
               filterType === tab.id
@@ -139,6 +141,7 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({ session, searchQue
               <div
                 key={item.id}
                 data-nav="true"
+                data-nav-col="content"
                 tabIndex={0}
                 onClick={() => handlePlay(item)}
                 onKeyDown={(e) => {

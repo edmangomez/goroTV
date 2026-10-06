@@ -56,12 +56,13 @@ export function buildVodBridgeUrl(
     params.set('ss', String(ss));
   }
 
-  if (session.token) {
-    params.set('token', session.token);
-  } else if (session.provider) {
+  if (session.provider) {
     params.set('directHost', session.provider.host);
     params.set('directUser', session.provider.username);
     params.set('directPass', session.provider.password);
+  }
+  if (session.token) {
+    params.set('token', session.token);
   }
 
   return `/api/client/stream/vod?${params.toString()}`;
@@ -79,12 +80,13 @@ export async function fetchVodProbe(
     params.set('streamId', String(streamId));
     params.set('extension', extension.replace(/^\./, ''));
 
-    if (session.token) {
-      params.set('token', session.token);
-    } else if (session.provider) {
+    if (session.provider) {
       params.set('directHost', session.provider.host);
       params.set('directUser', session.provider.username);
       params.set('directPass', session.provider.password);
+    }
+    if (session.token) {
+      params.set('token', session.token);
     }
 
     const headers: Record<string, string> = {};

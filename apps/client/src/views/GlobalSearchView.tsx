@@ -25,6 +25,7 @@ import {
 import { XtreamApiClient } from '../services/xtreamApi';
 import { VideoPlayer } from '../components/player/VideoPlayer';
 import { isMkvOrNeedsBridge, buildVodBridgeUrl } from '../utils/vodStreamHelper';
+import { registerModal } from '../hooks/useSpatialNav';
 
 interface GlobalSearchViewProps {
   session: ClientSession;
@@ -138,6 +139,25 @@ export const GlobalSearchView: React.FC<GlobalSearchViewProps> = ({ session }) =
     setVisibleMoviesLimit(30);
     setVisibleSeriesLimit(30);
   }, [query]);
+
+  // Registro de modales de detalle en la pila de navegación TV (Back / Escape)
+  useEffect(() => {
+    if (selectedMovie) {
+      return registerModal('searchMovieDetailModal', () => {
+        setSelectedMovie(null);
+        setMovieDetail(null);
+      });
+    }
+  }, [selectedMovie]);
+
+  useEffect(() => {
+    if (selectedSeries) {
+      return registerModal('searchSeriesDetailModal', () => {
+        setSelectedSeries(null);
+        setSeriesDetail(null);
+      });
+    }
+  }, [selectedSeries]);
 
   // Filtrado reactivo
   const cleanQuery = query.trim().toLowerCase();
@@ -715,7 +735,11 @@ export const GlobalSearchView: React.FC<GlobalSearchViewProps> = ({ session }) =
 
       {/* Modal Detalle Película */}
       {selectedMovie && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+        <div
+          data-modal="true"
+          role="dialog"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 animate-fade-in"
+        >
           <div className="bg-surface border border-surfaceLight rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl relative">
             <button
               onClick={() => {
@@ -803,7 +827,11 @@ export const GlobalSearchView: React.FC<GlobalSearchViewProps> = ({ session }) =
 
       {/* Modal Detalle Serie & Selector de Episodios */}
       {selectedSeries && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+        <div
+          data-modal="true"
+          role="dialog"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 animate-fade-in"
+        >
           <div className="bg-surface border border-surfaceLight rounded-3xl w-full max-w-3xl overflow-hidden shadow-2xl relative max-h-[90vh] flex flex-col">
             <button
               onClick={() => {

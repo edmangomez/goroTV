@@ -7,6 +7,7 @@ import { VideoPlayer } from '../components/player/VideoPlayer';
 import { ContinueWatchingRow } from '../components/vod/ContinueWatchingRow';
 import { progressApi } from '../services/progressApi';
 import { isMkvOrNeedsBridge, buildVodBridgeUrl } from '../utils/vodStreamHelper';
+import { registerModal } from '../hooks/useSpatialNav';
 
 interface SeriesViewProps {
   session: ClientSession;
@@ -51,6 +52,22 @@ export const SeriesView: React.FC<SeriesViewProps> = ({ session, searchQuery }) 
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const xtream = new XtreamApiClient(session.provider);
+
+  // Registro de modales en la pila de navegación TV (Back / Escape)
+  useEffect(() => {
+    if (mobileCatModalOpen) {
+      return registerModal('seriesMobileCatModal', () => setMobileCatModalOpen(false));
+    }
+  }, [mobileCatModalOpen]);
+
+  useEffect(() => {
+    if (selectedSeries) {
+      return registerModal('seriesDetailModal', () => {
+        setSelectedSeries(null);
+        setSeriesDetail(null);
+      });
+    }
+  }, [selectedSeries]);
 
 
   // Cargar categorías, favoritos y categorías favoritas iniciales
@@ -408,6 +425,8 @@ export const SeriesView: React.FC<SeriesViewProps> = ({ session, searchQuery }) 
                       <button
                         type="button"
                         data-nav="true"
+                        data-nav-col="categories"
+                        data-nav-selected={isSelected ? 'true' : undefined}
                         onClick={() => setSelectedCatId(fc.categoryId)}
                         className={`flex-1 px-3 py-2 rounded-xl text-xs font-bold text-left transition-all truncate ${
                           isSelected
@@ -438,6 +457,8 @@ export const SeriesView: React.FC<SeriesViewProps> = ({ session, searchQuery }) 
             <button
               type="button"
               data-nav="true"
+              data-nav-col="categories"
+              data-nav-selected={selectedCatId === 'all' ? 'true' : undefined}
               onClick={() => setSelectedCatId('all')}
               className={`w-full px-3 py-2 rounded-xl text-xs font-bold text-left transition-all flex items-center justify-between whitespace-nowrap mb-1 ${
                 selectedCatId === 'all'
@@ -475,6 +496,8 @@ export const SeriesView: React.FC<SeriesViewProps> = ({ session, searchQuery }) 
                       <button
                         type="button"
                         data-nav="true"
+                        data-nav-col="categories"
+                        data-nav-selected={isSelected ? 'true' : undefined}
                         onClick={() => setSelectedCatId(cat.category_id)}
                         className={`flex-1 px-3 py-2 rounded-xl text-xs font-bold text-left transition-all truncate ${
                           isSelected
@@ -511,6 +534,8 @@ export const SeriesView: React.FC<SeriesViewProps> = ({ session, searchQuery }) 
           <button
             type="button"
             data-nav="true"
+            data-nav-col="categories"
+            data-nav-selected={selectedCatId === 'all' ? 'true' : undefined}
             onClick={() => setSelectedCatId('all')}
             className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all border ${
               selectedCatId === 'all'
@@ -529,6 +554,8 @@ export const SeriesView: React.FC<SeriesViewProps> = ({ session, searchQuery }) 
                 key={`m_fav_${fc.categoryId}`}
                 type="button"
                 data-nav="true"
+                data-nav-col="categories"
+                data-nav-selected={isSelected ? 'true' : undefined}
                 onClick={() => setSelectedCatId(fc.categoryId)}
                 className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1 border ${
                   isSelected
@@ -550,6 +577,8 @@ export const SeriesView: React.FC<SeriesViewProps> = ({ session, searchQuery }) 
                 key={`m_cat_${cat.category_id}`}
                 type="button"
                 data-nav="true"
+                data-nav-col="categories"
+                data-nav-selected={isSelected ? 'true' : undefined}
                 onClick={() => setSelectedCatId(cat.category_id)}
                 className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all border ${
                   isSelected
@@ -572,7 +601,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({ session, searchQuery }) 
             onClick={(e) => {
               if (e.target === e.currentTarget) setMobileCatModalOpen(false);
             }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 animate-fade-in"
           >
             <div className="bg-surface border border-surfaceLight rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden shadow-2xl">
               {/* Header Modal */}
@@ -727,6 +756,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({ session, searchQuery }) 
                   <div
                     key={series.series_id}
                     data-nav="true"
+                    data-nav-col="content"
                     tabIndex={0}
                     onClick={() => handleOpenDetail(series)}
                     onKeyDown={(e) => {
@@ -798,7 +828,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({ session, searchQuery }) 
             setSelectedSeries(null);
             setSeriesDetail(null);
           }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 animate-fade-in"
         >
           <div
             onClick={(e) => e.stopPropagation()}

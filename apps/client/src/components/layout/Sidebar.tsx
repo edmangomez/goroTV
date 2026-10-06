@@ -69,6 +69,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 key={item.id}
                 data-nav="true"
+                data-nav-col="menu"
+                data-nav-active={isActive ? 'true' : undefined}
                 tabIndex={0}
                 onClick={() => setActiveTab(item.id)}
                 className={`w-full flex items-center gap-3.5 px-3.5 py-3 rounded-xl font-semibold text-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:scale-[1.03] ${

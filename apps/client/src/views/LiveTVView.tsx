@@ -4,6 +4,7 @@ import { Category, Channel, EPGProgramme, ClientSession } from '../types';
 import { XtreamApiClient } from '../services/xtreamApi';
 import { FavoriteCategoryItem, localDB } from '../services/db';
 import { VideoPlayer } from '../components/player/VideoPlayer';
+import { registerModal } from '../hooks/useSpatialNav';
 
 interface LiveTVViewProps {
   session: ClientSession;
@@ -28,6 +29,13 @@ export const LiveTVView: React.FC<LiveTVViewProps> = ({ session, searchQuery }) 
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const xtream = new XtreamApiClient(session.provider);
+
+  // Registro del modal de categorías en la pila de modales (Back / D-Pad)
+  useEffect(() => {
+    if (mobileCatModalOpen) {
+      return registerModal('liveCatModal', () => setMobileCatModalOpen(false));
+    }
+  }, [mobileCatModalOpen]);
 
   // Cargar categorías, canales favoritos y categorías favoritas iniciales
   useEffect(() => {
@@ -304,6 +312,8 @@ export const LiveTVView: React.FC<LiveTVViewProps> = ({ session, searchQuery }) 
                       <button
                         type="button"
                         data-nav="true"
+                        data-nav-col="categories"
+                        data-nav-selected={isSelected ? 'true' : undefined}
                         onClick={() => setSelectedCatId(fc.categoryId)}
                         className={`flex-1 px-3 py-2 rounded-xl text-xs font-bold text-left transition-all truncate ${
                           isSelected
@@ -334,6 +344,8 @@ export const LiveTVView: React.FC<LiveTVViewProps> = ({ session, searchQuery }) 
             <button
               type="button"
               data-nav="true"
+              data-nav-col="categories"
+              data-nav-selected={selectedCatId === 'all' ? 'true' : undefined}
               onClick={() => setSelectedCatId('all')}
               className={`w-full px-3 py-2 rounded-xl text-xs font-bold text-left transition-all flex items-center justify-between whitespace-nowrap mb-1 ${
                 selectedCatId === 'all'
@@ -370,6 +382,8 @@ export const LiveTVView: React.FC<LiveTVViewProps> = ({ session, searchQuery }) 
                       <button
                         type="button"
                         data-nav="true"
+                        data-nav-col="categories"
+                        data-nav-selected={isSelected ? 'true' : undefined}
                         onClick={() => setSelectedCatId(cat.category_id)}
                         className={`flex-1 px-3 py-2 rounded-xl text-xs font-bold text-left transition-all truncate ${
                           isSelected
@@ -406,6 +420,8 @@ export const LiveTVView: React.FC<LiveTVViewProps> = ({ session, searchQuery }) 
           <button
             type="button"
             data-nav="true"
+            data-nav-col="categories"
+            data-nav-selected={selectedCatId === 'all' ? 'true' : undefined}
             onClick={() => setSelectedCatId('all')}
             className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all border ${
               selectedCatId === 'all'
@@ -424,6 +440,8 @@ export const LiveTVView: React.FC<LiveTVViewProps> = ({ session, searchQuery }) 
                 key={`m_fav_${fc.categoryId}`}
                 type="button"
                 data-nav="true"
+                data-nav-col="categories"
+                data-nav-selected={isSelected ? 'true' : undefined}
                 onClick={() => setSelectedCatId(fc.categoryId)}
                 className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1 border ${
                   isSelected
@@ -445,6 +463,8 @@ export const LiveTVView: React.FC<LiveTVViewProps> = ({ session, searchQuery }) 
                 key={`m_cat_${cat.category_id}`}
                 type="button"
                 data-nav="true"
+                data-nav-col="categories"
+                data-nav-selected={isSelected ? 'true' : undefined}
                 onClick={() => setSelectedCatId(cat.category_id)}
                 className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all border ${
                   isSelected
@@ -462,7 +482,9 @@ export const LiveTVView: React.FC<LiveTVViewProps> = ({ session, searchQuery }) 
       {/* Modal de Categorías Completo para Móvil / Tablet */}
       {mobileCatModalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm animate-fade-in"
+          data-modal="true"
+          role="dialog"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/90 animate-fade-in"
           onClick={() => setMobileCatModalOpen(false)}
         >
           <div
@@ -573,6 +595,8 @@ export const LiveTVView: React.FC<LiveTVViewProps> = ({ session, searchQuery }) 
                 <div
                   key={channel.stream_id}
                   data-nav="true"
+                  data-nav-col="content"
+                  data-nav-selected={isSelected ? 'true' : undefined}
                   tabIndex={0}
                   onClick={() => {
                     setSelectedChannel(channel);

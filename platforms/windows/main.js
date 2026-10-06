@@ -2,7 +2,7 @@ const { app, BrowserWindow, Menu, globalShortcut, session } = require('electron'
 const path = require('path');
 
 let mainWindow = null;
-const DEFAULT_URL = process.env.GOROTV_URL || 'http://tv.gorofamily.com';
+const DEFAULT_URL = process.env.GOROTV_URL || 'https://tv.gorofamily.com';
 
 // Solo permitir una única instancia de la aplicación
 const gotTheLock = app.requestSingleInstanceLock();
