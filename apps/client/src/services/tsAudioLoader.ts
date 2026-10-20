@@ -14,6 +14,7 @@ export class TSDualAudioProcessor {
   public pmtPid: number = -1;
   private onTracksDiscovered?: (tracks: MediaTrack[]) => void;
   private hasDispatchedTracks = false;
+  private scannedBytes = 0;
 
   constructor(
     initialAudioIndex = 0,
@@ -28,13 +29,25 @@ export class TSDualAudioProcessor {
   }
 
   public processChunk(chunk: ArrayBuffer): ArrayBuffer {
+    // Fast-path: si ya escaneamos el encabezado inicial (o descubrimos pistas) y estamos en la pista principal (0),
+    // pasar el buffer intacto en O(1) sin tocar ningún byte para máxima estabilidad del demuxer.
+    if (this.selectedAudioIndex === 0 && (this.hasDispatchedTracks || this.scannedBytes > 1024 * 1024)) {
+      return chunk;
+    }
+
+    this.scannedBytes += chunk.byteLength;
     const u8 = new Uint8Array(chunk);
     const len = u8.length;
 
     for (let i = 0; i <= len - 188; i += 188) {
-      if (u8[i] !== 0x47) {
-        // Resincronización al inicio de paquete TS (0x47)
-        while (i < len && u8[i] !== 0x47) i++;
+      if (u8[i] !== 0x47 || (i + 188 < len && u8[i + 188] !== 0x47)) {
+        // Resincronización verificando dos marcas de sincronía (0x47) separadas por exactamente 188 bytes
+        while (i <= len - 188) {
+          if (u8[i] === 0x47 && (i + 188 >= len || u8[i + 188] === 0x47)) {
+            break;
+          }
+          i++;
+        }
         if (i > len - 188) break;
       }
 
@@ -154,6 +167,8 @@ export class DualAudioFetchStreamLoader extends mpegts.BaseLoader {
 
   private _dataSource: any;
   private _range: any;
+  private _reconnectAttempts = 0;
+  private _reconnectTimer: any = null;
 
   public static isSupported(): boolean {
     return typeof window !== 'undefined' && !!window.fetch && !!window.ReadableStream;
@@ -172,6 +187,10 @@ export class DualAudioFetchStreamLoader extends mpegts.BaseLoader {
   }
 
   public destroy(): void {
+    if (this._reconnectTimer) {
+      clearTimeout(this._reconnectTimer);
+      this._reconnectTimer = null;
+    }
     if (this.isWorking()) {
       this.abort();
     }
@@ -188,6 +207,10 @@ export class DualAudioFetchStreamLoader extends mpegts.BaseLoader {
 
   public abort(): void {
     this._requestAbort = true;
+    if (this._reconnectTimer) {
+      clearTimeout(this._reconnectTimer);
+      this._reconnectTimer = null;
+    }
     if (this._abortController) {
       try {
         this._abortController.abort();
@@ -199,6 +222,7 @@ export class DualAudioFetchStreamLoader extends mpegts.BaseLoader {
   public open(dataSource: any, range: any): void {
     this._dataSource = dataSource;
     this._range = range;
+    this._requestAbort = false;
     this._status = mpegts.LoaderStatus.kConnecting;
 
     const sourceURL = dataSource.url;
@@ -237,7 +261,17 @@ export class DualAudioFetchStreamLoader extends mpegts.BaseLoader {
         }
       })
       .catch((err) => {
-        if (this._abortController && this._abortController.signal.aborted) {
+        if (this._requestAbort || (this._abortController && this._abortController.signal.aborted)) {
+          return;
+        }
+        // Si ya estábamos recibiendo video y el servidor IPTV reinició la conexión TCP, reconectar de forma transparente
+        if (this._receivedLength > 0 && this._reconnectAttempts < 6) {
+          this._reconnectAttempts++;
+          this._reconnectTimer = setTimeout(() => {
+            if (!this._requestAbort) {
+              this.open(this._dataSource, { from: 0, to: -1 });
+            }
+          }, 250);
           return;
         }
         this._status = mpegts.LoaderStatus.kError;
@@ -249,7 +283,22 @@ export class DualAudioFetchStreamLoader extends mpegts.BaseLoader {
 
   private _pump(reader: ReadableStreamDefaultReader<Uint8Array>): Promise<void> {
     return reader.read().then((result) => {
+      if (this._requestAbort) {
+        this._status = mpegts.LoaderStatus.kComplete;
+        return reader.cancel();
+      }
+
       if (result.done) {
+        // En transmisiones en vivo, si el proveedor cierra el chunk HTTP pero el usuario sigue viendo, reconectar sin cortar el buffer
+        if (this._receivedLength > 0 && this._reconnectAttempts < 6) {
+          this._reconnectAttempts++;
+          this._reconnectTimer = setTimeout(() => {
+            if (!this._requestAbort) {
+              this.open(this._dataSource, { from: 0, to: -1 });
+            }
+          }, 150);
+          return;
+        }
         this._status = mpegts.LoaderStatus.kComplete;
         if (this.onComplete) {
           const from = this._range?.from || 0;
@@ -258,16 +307,13 @@ export class DualAudioFetchStreamLoader extends mpegts.BaseLoader {
         return;
       }
 
-      if (this._requestAbort) {
-        this._status = mpegts.LoaderStatus.kComplete;
-        return reader.cancel();
-      }
-
+      this._reconnectAttempts = 0;
       this._status = mpegts.LoaderStatus.kBuffering;
-      const rawBuffer = result.value.buffer.slice(
-        result.value.byteOffset,
-        result.value.byteOffset + result.value.byteLength
-      ) as ArrayBuffer;
+      const val = result.value;
+      const rawBuffer =
+        val.byteOffset === 0 && val.byteLength === val.buffer.byteLength
+          ? (val.buffer as ArrayBuffer)
+          : (val.buffer.slice(val.byteOffset, val.byteOffset + val.byteLength) as ArrayBuffer);
 
       // Procesar el chunk para detección y conmutación de audio dual
       const processed = this._processor.processChunk(rawBuffer);

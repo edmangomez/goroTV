@@ -447,8 +447,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         if (isCancelled) return;
         const v = videoRef.current;
         if (v && (v.readyState === 0 || v.paused) && v.currentTime === 0) {
-          console.warn('[Player] Watchdog: Canal en vivo sin respuesta tras 7s. Intentando conmutación...');
-          if (!tryNextFallbackUrl('Timeout de 7s esperando stream')) {
+          console.warn('[Player] Watchdog: Canal en vivo sin respuesta tras 12s. Intentando conmutación...');
+          if (!tryNextFallbackUrl('Timeout de 12s esperando stream')) {
             if (activeStreamUrl.includes('.m3u8')) {
               const tsDirect = activeStreamUrl.replace('.m3u8', '.ts');
               console.info('[Player] Watchdog: Conmutando a .ts directo:', tsDirect);
@@ -459,7 +459,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             }
           }
         }
-      }, 7000);
+      }, 12000);
     }
 
     // 1. Fallback a reproducción nativa HTML5
@@ -743,6 +743,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
       currentEngineRef.current = 'mpegts';
       try {
+        let hasReceivedMediaInfo = false;
         const player = mpegts.createPlayer(
           {
             type: 'mse',
@@ -752,11 +753,14 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           },
           {
             enableWorker: false,
-            lazyLoadMaxDuration: 3 * 60,
-            seekType: 'range',
-            liveBufferLatencyChasing: true,
-            liveBufferLatencyMaxLatency: 2.5,
-            liveBufferLatencyMinRemain: 0.5,
+            enableStashBuffer: true,
+            stashInitialSize: 256 * 1024,
+            lazyLoad: false,
+            liveBufferLatencyChasing: false,
+            autoCleanupSourceBuffer: true,
+            autoCleanupMaxBackwardDuration: 60,
+            autoCleanupMinBackwardDuration: 30,
+            fixAudioTimestampGap: true,
             customLoader: DualAudioFetchStreamLoader,
             onAudioTracksDiscovered: (discoveredTracks: MediaTrack[]) => {
               if (!isCancelled) {
@@ -778,9 +782,21 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         player.on(mpegts.Events.ERROR, (errorType: string, errorDetail: string, errorInfo: any) => {
           if (isCancelled) return;
           console.warn('[Player] Error en mpegts.js:', errorType, errorDetail, errorInfo);
+          // Si ya habíamos conectado al stream TS y ocurre un corte de red del proveedor,
+          // reconectar en segundo plano sin destruir el reproductor ni saltar a .m3u8
+          if (hasReceivedMediaInfo && errorType === mpegts.ErrorTypes.NETWORK_ERROR) {
+            console.info('[Player] Reconectando stream TS en segundo plano tras corte de red...');
+            try {
+              player.unload();
+              player.load();
+              player.play()?.catch(() => {});
+              return;
+            } catch {}
+          }
           if (
-            errorType === mpegts.ErrorTypes.NETWORK_ERROR ||
-            errorType === mpegts.ErrorTypes.MEDIA_ERROR
+            !hasReceivedMediaInfo &&
+            (errorType === mpegts.ErrorTypes.NETWORK_ERROR ||
+              errorType === mpegts.ErrorTypes.MEDIA_ERROR)
           ) {
             if (!tryNextFallbackUrl(`Error en mpegts (${errorDetail})`)) {
               loadNative(url);
@@ -790,9 +806,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
         player.on(mpegts.Events.MEDIA_INFO, (info: any) => {
           if (isCancelled) return;
+          hasReceivedMediaInfo = true;
           if (liveStallTimer) clearTimeout(liveStallTimer);
           console.info('[Player] mpegts MEDIA_INFO recibido:', info);
-          setLoading(false);
         });
       } catch (e) {
         console.warn('[Player] Excepción al inicializar mpegts.js:', e);
@@ -1023,16 +1039,29 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     const video = videoRef.current;
     if (!video) return;
 
+    let waitingTimer: any = null;
+    const clearWaitingTimer = () => {
+      if (waitingTimer) {
+        clearTimeout(waitingTimer);
+        waitingTimer = null;
+      }
+    };
+
     const onPlay = () => {
       setIsPlaying(true);
       video.volume = volume;
       video.muted = isMuted;
     };
     const onPause = () => {
+      clearWaitingTimer();
       setIsPlaying(false);
       saveCurrentProgress(true);
     };
     const onTimeUpdate = () => {
+      if (!video.paused && video.currentTime > 0) {
+        clearWaitingTimer();
+        setLoading((prev) => (prev ? false : prev));
+      }
       const isBridge = activeStreamUrl.includes('/api/client/stream/vod');
       const vTime = isBridge ? seekOffsetRef.current + video.currentTime : video.currentTime;
       setCurrentTime(vTime);
@@ -1088,6 +1117,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       }
     };
     const onCanPlay = () => {
+      clearWaitingTimer();
       setLoading(false);
       const isBridge = activeStreamUrl.includes('/api/client/stream/vod');
       if (!isBridge && !hasSeekedInitialRef.current && initialTime && initialTime > 0) {
@@ -1099,8 +1129,19 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         }
       }
     };
-    const onWaiting = () => setLoading(true);
-    const onPlaying = () => setLoading(false);
+    const onWaiting = () => {
+      clearWaitingTimer();
+      // Debounce de 1.5s para evitar parpadeos de "Cargando transmisión..." ante micro-pausas de MSE
+      waitingTimer = setTimeout(() => {
+        if (videoRef.current && !videoRef.current.paused && videoRef.current.readyState < 3) {
+          setLoading(true);
+        }
+      }, 1500);
+    };
+    const onPlaying = () => {
+      clearWaitingTimer();
+      setLoading(false);
+    };
 
     video.addEventListener('play', onPlay);
     video.addEventListener('pause', onPause);
@@ -1112,6 +1153,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     video.addEventListener('playing', onPlaying);
 
     return () => {
+      clearWaitingTimer();
       saveCurrentProgress(true);
       video.removeEventListener('play', onPlay);
       video.removeEventListener('pause', onPause);
