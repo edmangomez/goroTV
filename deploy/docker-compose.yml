@@ -9,6 +9,7 @@ services:
     environment:
       - PORT=3001
       - NODE_ENV=production
+      - NODE_OPTIONS=--dns-result-order=ipv4first
       - JWT_SECRET=${JWT_SECRET:-gorotv_super_secret_jwt_key_production_2026}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-gorotv_aes256_secret_key_32chars!}
       - DATABASE_PATH=/app/data/gorotv.sqlite

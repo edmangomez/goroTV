@@ -734,8 +734,10 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       }
 
       if (!mpegts.isSupported()) {
-        console.warn('[Player] mpegts.js no soportado en este entorno, cayendo a nativo');
-        loadNative(url);
+        console.warn('[Player] mpegts.js no soportado en este entorno, intentando fallback');
+        if (!tryNextFallbackUrl('mpegts no soportado')) {
+          loadNative(url);
+        }
         return;
       }
 
@@ -794,7 +796,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         });
       } catch (e) {
         console.warn('[Player] Excepción al inicializar mpegts.js:', e);
-        loadNative(url);
+        if (!tryNextFallbackUrl('Excepción al inicializar mpegts.js')) {
+          loadNative(url);
+        }
       }
     };
 

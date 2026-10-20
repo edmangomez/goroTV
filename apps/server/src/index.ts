@@ -1,3 +1,7 @@
+import dns from 'node:dns';
+// Forzar resolución IPv4 primero para evitar timeouts en redes Docker sin enrutamiento IPv6
+dns.setDefaultResultOrder('ipv4first');
+
 import dotenv from 'dotenv';
 dotenv.config();
 

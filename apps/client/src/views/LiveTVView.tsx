@@ -293,8 +293,8 @@ export const LiveTVView: React.FC<LiveTVViewProps> = ({ session, searchQuery }) 
 
   // Reproductor a pantalla completa
   if (isFullscreenPlayer && activePlaybackChannel) {
-    const streamUrl = xtream.getLiveStreamUrl(activePlaybackChannel.stream_id, 'm3u8');
-    const fallbackUrl = xtream.getLiveStreamUrl(activePlaybackChannel.stream_id, 'ts');
+    const streamUrl = xtream.getLiveStreamUrl(activePlaybackChannel.stream_id, 'ts');
+    const fallbackUrl = xtream.getLiveStreamUrl(activePlaybackChannel.stream_id, 'm3u8');
     const currentEpg = channelEPG[activePlaybackChannel.stream_id];
 
     return (

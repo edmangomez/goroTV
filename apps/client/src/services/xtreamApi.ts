@@ -30,14 +30,15 @@ export class XtreamApiClient {
       cleanHost = cleanHost.slice(0, -1);
     }
 
-    // Si la web corre sobre HTTPS (ej: túnel Cloudflare tv.gorofamily.com) y el host usa HTTP con puertos estándar,
-    // convertir automáticamente a HTTPS sin puerto o puerto 443 estándar para evitar bloqueo de Mixed Content.
+    // Si la web corre sobre HTTPS (ej: túnel Cloudflare tv.gorofamily.com) y el host usa HTTP,
+    // convertir automáticamente a HTTPS sin puerto o puerto estándar para evitar bloqueo de Mixed Content.
     if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
       if (cleanHost.startsWith('http://')) {
+        cleanHost = cleanHost.replace('http://', 'https://');
         if (cleanHost.includes(':2082')) {
-          cleanHost = cleanHost.replace('http://', 'https://').replace(':2082', '');
+          cleanHost = cleanHost.replace(':2082', '');
         } else if (cleanHost.includes(':80')) {
-          cleanHost = cleanHost.replace('http://', 'https://').replace(':80', '');
+          cleanHost = cleanHost.replace(':80', '');
         }
       }
     }
@@ -189,35 +190,28 @@ export class XtreamApiClient {
   }
 
   // --- GENERADORES DE URL DIRECTA DE VIDEO ---
-  getLiveStreamUrl(streamId: number, format: 'm3u8' | 'ts' = 'm3u8'): string {
+  private getStreamHost(): string {
     let host = this.host;
     if (typeof window !== 'undefined' && window.location.protocol === 'https:' && host.startsWith('http://')) {
+      host = host.replace('http://', 'https://');
       if (host.includes(':2082') || host.includes(':80')) {
-        host = host.replace('http://', 'https://').replace(/:2082|:80/, '');
+        host = host.replace(/:2082|:80/, '');
       }
     }
-    return `${host}/live/${this.user}/${this.pass}/${streamId}.${format}`;
+    return host;
+  }
+
+  getLiveStreamUrl(streamId: number, format: 'ts' | 'm3u8' = 'ts'): string {
+    return `${this.getStreamHost()}/live/${this.user}/${this.pass}/${streamId}.${format}`;
   }
 
   getMovieStreamUrl(streamId: number, extension: string = 'mp4'): string {
-    let host = this.host;
-    if (typeof window !== 'undefined' && window.location.protocol === 'https:' && host.startsWith('http://')) {
-      if (host.includes(':2082') || host.includes(':80')) {
-        host = host.replace('http://', 'https://').replace(/:2082|:80/, '');
-      }
-    }
     const ext = extension ? extension.replace('.', '') : 'mp4';
-    return `${host}/movie/${this.user}/${this.pass}/${streamId}.${ext}`;
+    return `${this.getStreamHost()}/movie/${this.user}/${this.pass}/${streamId}.${ext}`;
   }
 
   getSeriesStreamUrl(streamId: number, extension: string = 'mp4'): string {
-    let host = this.host;
-    if (typeof window !== 'undefined' && window.location.protocol === 'https:' && host.startsWith('http://')) {
-      if (host.includes(':2082') || host.includes(':80')) {
-        host = host.replace('http://', 'https://').replace(/:2082|:80/, '');
-      }
-    }
     const ext = extension ? extension.replace('.', '') : 'mp4';
-    return `${host}/series/${this.user}/${this.pass}/${streamId}.${ext}`;
+    return `${this.getStreamHost()}/series/${this.user}/${this.pass}/${streamId}.${ext}`;
   }
 }

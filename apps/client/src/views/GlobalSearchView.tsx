@@ -182,8 +182,8 @@ export const GlobalSearchView: React.FC<GlobalSearchViewProps> = ({ session }) =
 
   // Acciones de reproducción
   const handlePlayChannel = (channel: Channel) => {
-    const streamUrl = xtream.getLiveStreamUrl(channel.stream_id, 'm3u8');
-    const fallbackUrl = xtream.getLiveStreamUrl(channel.stream_id, 'ts');
+    const streamUrl = xtream.getLiveStreamUrl(channel.stream_id, 'ts');
+    const fallbackUrl = xtream.getLiveStreamUrl(channel.stream_id, 'm3u8');
     setPlaybackSource({
       type: 'live',
       title: channel.name,
