@@ -759,6 +759,16 @@ export async function probeVodStream(req: AuthenticatedClientRequest, res: Respo
 }
 
 export function streamVodAudioBridge(req: AuthenticatedClientRequest, res: Response): void {
+  // Protección contra baneo de Cloudflare (ToS 2.8 prohíbe proxying de video por Cloudflare Tunnel)
+  const isCloudflare = req.headers['cf-ray'] || (req.headers['host'] && req.headers['host'].includes('gorofamily.com'));
+  if (isCloudflare) {
+    res.status(403).json({
+      error: 'CLOUDFLARE_VIDEO_PROXY_PROHIBITED',
+      message: 'El streaming de video a través del túnel de Cloudflare está estrictamente desactivado para proteger la cuenta contra baneos de Cloudflare. El reproductor debe conectarse directamente al proveedor IPTV.',
+    });
+    return;
+  }
+
   const resolved = resolveVodUpstreamUrl(req);
   if (resolved.error || !resolved.url) {
     res.status(400).json({ error: 'INVALID_STREAM_URL', message: resolved.error || 'URL inválida' });

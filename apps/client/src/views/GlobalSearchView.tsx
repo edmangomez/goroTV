@@ -24,7 +24,6 @@ import {
 } from '../types';
 import { XtreamApiClient } from '../services/xtreamApi';
 import { VideoPlayer } from '../components/player/VideoPlayer';
-import { isMkvOrNeedsBridge, buildVodBridgeUrl } from '../utils/vodStreamHelper';
 import { registerModal } from '../hooks/useSpatialNav';
 
 interface GlobalSearchViewProps {
@@ -208,31 +207,19 @@ export const GlobalSearchView: React.FC<GlobalSearchViewProps> = ({ session }) =
   const handlePlayMovieDirect = (movie: Movie) => {
     const ext = movie.container_extension || 'mp4';
     const directUrl = xtream.getMovieStreamUrl(movie.stream_id, ext);
-    const needsBridge = isMkvOrNeedsBridge(ext);
+    const altExt = ext === 'mp4' ? 'mkv' : 'mp4';
+    const fallbackDirectUrl = xtream.getMovieStreamUrl(movie.stream_id, altExt);
 
-    if (needsBridge) {
-      const bridgeUrl = buildVodBridgeUrl(session, 'movie', movie.stream_id, ext, 0, 0);
-      setPlaybackSource({
-        type: 'movie',
-        title: movie.name,
-        streamUrl: bridgeUrl,
-        fallbackUrls: [directUrl],
-        streamId: movie.stream_id,
-        containerExtension: ext,
-        durationSecs: movieDetail?.info?.duration_secs,
-      });
-    } else {
-      const bridgeFallback = buildVodBridgeUrl(session, 'movie', movie.stream_id, ext, 0, 0);
-      setPlaybackSource({
-        type: 'movie',
-        title: movie.name,
-        streamUrl: directUrl,
-        fallbackUrls: [bridgeFallback],
-        streamId: movie.stream_id,
-        containerExtension: ext,
-        durationSecs: movieDetail?.info?.duration_secs,
-      });
-    }
+    // Conexión 100% directa al proveedor IPTV (Regla 1 / Cero tráfico de video por Cloudflare Tunnel)
+    setPlaybackSource({
+      type: 'movie',
+      title: movie.name,
+      streamUrl: directUrl,
+      fallbackUrls: [fallbackDirectUrl],
+      streamId: movie.stream_id,
+      containerExtension: ext,
+      durationSecs: movieDetail?.info?.duration_secs,
+    });
   };
 
   const handleOpenSeriesDetail = async (series: Series) => {
@@ -255,40 +242,24 @@ export const GlobalSearchView: React.FC<GlobalSearchViewProps> = ({ session }) =
   const handlePlayEpisode = (series: Series, ep: Episode) => {
     const ext = ep.container_extension || 'mp4';
     const directUrl = xtream.getSeriesStreamUrl(Number(ep.id), ext);
-    const needsBridge = isMkvOrNeedsBridge(ext);
+    const altExt = ext === 'mp4' ? 'mkv' : 'mp4';
+    const fallbackDirectUrl = xtream.getSeriesStreamUrl(Number(ep.id), altExt);
     const seasonNumber = Number(ep.season || selectedSeason);
 
-    if (needsBridge) {
-      const bridgeUrl = buildVodBridgeUrl(session, 'series', Number(ep.id), ext, 0, 0);
-      setPlaybackSource({
-        type: 'series',
-        title: series.name,
-        subtitle: `T${seasonNumber}:E${ep.episode_num} - ${ep.title}`,
-        streamUrl: bridgeUrl,
-        fallbackUrls: [directUrl],
-        streamId: Number(ep.id),
-        seriesId: Number(series.series_id),
-        seasonNum: seasonNumber,
-        episodeNum: Number(ep.episode_num),
-        containerExtension: ext,
-        durationSecs: ep.info?.duration_secs,
-      });
-    } else {
-      const bridgeFallback = buildVodBridgeUrl(session, 'series', Number(ep.id), ext, 0, 0);
-      setPlaybackSource({
-        type: 'series',
-        title: series.name,
-        subtitle: `T${seasonNumber}:E${ep.episode_num} - ${ep.title}`,
-        streamUrl: directUrl,
-        fallbackUrls: [bridgeFallback],
-        streamId: Number(ep.id),
-        seriesId: Number(series.series_id),
-        seasonNum: seasonNumber,
-        episodeNum: Number(ep.episode_num),
-        containerExtension: ext,
-        durationSecs: ep.info?.duration_secs,
-      });
-    }
+    // Conexión 100% directa al proveedor IPTV (Regla 1 / Cero tráfico de video por Cloudflare Tunnel)
+    setPlaybackSource({
+      type: 'series',
+      title: series.name,
+      subtitle: `T${seasonNumber}:E${ep.episode_num} - ${ep.title}`,
+      streamUrl: directUrl,
+      fallbackUrls: [fallbackDirectUrl],
+      streamId: Number(ep.id),
+      seriesId: Number(series.series_id),
+      seasonNum: seasonNumber,
+      episodeNum: Number(ep.episode_num),
+      containerExtension: ext,
+      durationSecs: ep.info?.duration_secs,
+    });
   };
 
   // Reproductor a pantalla completa

@@ -4,7 +4,6 @@ import { FavoriteItem, localDB } from '../services/db';
 import { ClientSession } from '../types';
 import { XtreamApiClient } from '../services/xtreamApi';
 import { VideoPlayer } from '../components/player/VideoPlayer';
-import { isMkvOrNeedsBridge, buildVodBridgeUrl } from '../utils/vodStreamHelper';
 
 interface FavoritesViewProps {
   session: ClientSession;
@@ -43,16 +42,23 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({ session, searchQue
 
   const handlePlay = (item: FavoriteItem) => {
     if (item.type === 'live') {
-      const url = xtream.getLiveStreamUrl(item.streamId);
-      setPlayingItem({ title: item.name, url, isLive: true, streamId: item.streamId });
+      const url = xtream.getLiveStreamUrl(item.streamId, 'ts');
+      const fallbackUrl = xtream.getLiveStreamUrl(item.streamId, 'm3u8');
+      setPlayingItem({
+        title: item.name,
+        url,
+        fallbackUrls: [fallbackUrl],
+        isLive: true,
+        streamId: item.streamId,
+      });
     } else if (item.type === 'movie') {
       const ext = 'mp4';
       const directUrl = xtream.getMovieStreamUrl(item.streamId, ext);
-      const bridgeUrl = buildVodBridgeUrl(session, 'movie', item.streamId, ext);
+      const fallbackUrl = xtream.getMovieStreamUrl(item.streamId, 'mkv');
       setPlayingItem({
         title: item.name,
         url: directUrl,
-        fallbackUrls: [bridgeUrl],
+        fallbackUrls: [fallbackUrl],
         isLive: false,
         contentType: 'movie',
         streamId: item.streamId,
@@ -61,11 +67,11 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({ session, searchQue
     } else {
       const ext = 'mkv';
       const directUrl = xtream.getSeriesStreamUrl(item.streamId, ext);
-      const bridgeUrl = buildVodBridgeUrl(session, 'series', item.streamId, ext);
+      const fallbackUrl = xtream.getSeriesStreamUrl(item.streamId, 'mp4');
       setPlayingItem({
         title: item.name,
-        url: bridgeUrl,
-        fallbackUrls: [directUrl],
+        url: directUrl,
+        fallbackUrls: [fallbackUrl],
         isLive: false,
         contentType: 'series',
         streamId: item.streamId,

@@ -12,7 +12,7 @@ import { DualAudioFetchStreamLoader } from '../../services/tsAudioLoader';
 import { isFullscreenActive, toggleAppFullscreen, addFullscreenChangeListener } from '../../utils/fullscreen';
 import { progressApi } from '../../services/progressApi';
 import { probeAudioTracks } from '../../utils/mp4Probe';
-import { buildVodBridgeUrl, fetchVodProbe } from '../../utils/vodStreamHelper';
+import { buildVodBridgeUrl, fetchVodProbe, isCloudflareTunnel } from '../../utils/vodStreamHelper';
 
 // Instalar polyfills de Shaka para compatibilidad en navegadores y Smart TVs (Tizen, webOS, Android TV)
 if (typeof window !== 'undefined') {
@@ -1250,19 +1250,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
               currentTrackIdx = parseInt(u.searchParams.get('audioTrack') || '0', 10) || 0;
             } catch {}
           } else if (probe.audioTracks.some((pt) => pt.needsTranscode)) {
-            // Si el stream directo tiene audio AC-3/EAC-3 sin decodificador en navegador/TV, conmutar de inmediato al bridge
-            console.info('[Player] Pistas de audio AC-3/EAC-3 detectadas. Activando automáticamente Audio Bridge estéreo...');
-            const curTime = (videoRef.current?.currentTime || 0) + seekOffsetRef.current || initialTime || 0;
-            seekOffsetRef.current = curTime;
-            const autoBridgeUrl = buildVodBridgeUrl(
-              effectiveSession,
-              contentType,
-              streamId,
-              containerExtension || 'mkv',
-              0,
-              curTime
-            );
-            setOverrideBridgeUrl(autoBridgeUrl);
+            console.info('[Player] Pistas de audio detectadas. Reproduciendo directamente desde el proveedor IPTV (Regla 1 / Cero tráfico por Cloudflare).');
           }
 
           const mappedTracks: MediaTrack[] = probe.audioTracks.map((pt) => ({
@@ -1368,6 +1356,26 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           active: String(t.id) === String(trackId),
         }))
       );
+
+      // Si estamos en Cloudflare, NO transcodificar por servidor para evitar baneo
+      if (isCloudflareTunnel()) {
+        console.info('[Player] En túnel Cloudflare: seleccionando pista de audio directamente en el cliente (cero video por Cloudflare).');
+        if (currentEngineRef.current === 'shaka' && shakaPlayerRef.current) {
+          const target = cachedShakaAudioTracksRef.current[targetIdx];
+          if (target) {
+            try {
+              if (target.language && target.language !== 'und') {
+                shakaPlayerRef.current.selectAudioLanguage(target.language, target.role, target.channels, undefined, target.codec);
+              } else if (target.variantTrack) {
+                shakaPlayerRef.current.selectVariantTrack(target.variantTrack, true);
+              }
+            } catch (e) {
+              console.warn('[Player] Error al conmutar pista en Shaka:', e);
+            }
+          }
+        }
+        return;
+      }
 
       const effectiveSession = session || (() => {
         try {

@@ -27,16 +27,16 @@ export interface VodProbeResult {
   fallback?: boolean;
 }
 
-export function isMkvOrNeedsBridge(containerExtension?: string, url?: string): boolean {
-  if (url) {
-    const lowerUrl = url.toLowerCase();
-    if (lowerUrl.includes('.mkv') || lowerUrl.includes('.avi') || lowerUrl.includes('.flv') || lowerUrl.includes('.wmv')) {
-      return true;
-    }
-  }
-  if (!containerExtension) return false;
-  const ext = containerExtension.toLowerCase().trim().replace(/^\./, '');
-  return ['mkv', 'avi', 'flv', 'wmv', 'webm'].includes(ext);
+export function isCloudflareTunnel(): boolean {
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname;
+  return host.includes('gorofamily.com') || (!host.match(/^(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1]))/) && window.location.protocol === 'https:');
+}
+
+export function isMkvOrNeedsBridge(_containerExtension?: string, _url?: string): boolean {
+  // Regla 1 del proyecto: El reproductor SIEMPRE conecta directamente al proveedor IPTV.
+  // El streaming directo al proveedor evita tráfico de video por Cloudflare Tunnel (previniendo suspensión por ToS 2.8).
+  return false;
 }
 
 export function buildVodBridgeUrl(

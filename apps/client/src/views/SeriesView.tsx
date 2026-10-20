@@ -227,42 +227,25 @@ export const SeriesView: React.FC<SeriesViewProps> = ({ session, searchQuery }) 
   const handlePlayEpisode = (series: Series, ep: Episode, initialTime = 0) => {
     const ext = ep.container_extension || 'mkv';
     const directUrl = xtream.getSeriesStreamUrl(Number(ep.id), ext);
+    const altExt = ext === 'mp4' ? 'mkv' : 'mp4';
+    const fallbackDirectUrl = xtream.getSeriesStreamUrl(Number(ep.id), altExt);
     const seasonNumber = Number(ep.season || selectedSeason);
-    const needsBridge = isMkvOrNeedsBridge(ext);
 
-    if (needsBridge) {
-      const bridgeUrl = buildVodBridgeUrl(session, 'series', Number(ep.id), ext, 0, initialTime);
-      setPlayingEpisode({
-        seriesTitle: series.name,
-        episodeTitle: `T${seasonNumber}:E${ep.episode_num} - ${ep.title}`,
-        url: bridgeUrl,
-        fallbackUrls: [directUrl],
-        initialTime,
-        seriesId: Number(series.series_id),
-        episodeId: Number(ep.id),
-        seasonNum: seasonNumber,
-        episodeNum: Number(ep.episode_num),
-        posterUrl: ep.info?.movie_image || series.cover,
-        containerExtension: ext,
-        durationSecs: ep.info?.duration_secs,
-      });
-    } else {
-      const bridgeFallback = buildVodBridgeUrl(session, 'series', Number(ep.id), ext, 0, initialTime);
-      setPlayingEpisode({
-        seriesTitle: series.name,
-        episodeTitle: `T${seasonNumber}:E${ep.episode_num} - ${ep.title}`,
-        url: directUrl,
-        fallbackUrls: [bridgeFallback],
-        initialTime,
-        seriesId: Number(series.series_id),
-        episodeId: Number(ep.id),
-        seasonNum: seasonNumber,
-        episodeNum: Number(ep.episode_num),
-        posterUrl: ep.info?.movie_image || series.cover,
-        containerExtension: ext,
-        durationSecs: ep.info?.duration_secs,
-      });
-    }
+    // Conexión 100% directa al proveedor IPTV (Regla 1 / Cero tráfico de video por Cloudflare Tunnel)
+    setPlayingEpisode({
+      seriesTitle: series.name,
+      episodeTitle: `T${seasonNumber}:E${ep.episode_num} - ${ep.title}`,
+      url: directUrl,
+      fallbackUrls: [fallbackDirectUrl],
+      initialTime,
+      seriesId: Number(series.series_id),
+      episodeId: Number(ep.id),
+      seasonNum: seasonNumber,
+      episodeNum: Number(ep.episode_num),
+      posterUrl: ep.info?.movie_image || series.cover,
+      containerExtension: ext,
+      durationSecs: ep.info?.duration_secs,
+    });
   };
 
   // Continuidad inteligente de series: al completar (>90%) un episodio, avanzar al siguiente
@@ -700,13 +683,12 @@ export const SeriesView: React.FC<SeriesViewProps> = ({ session, searchQuery }) 
           onPlayItem={(item) => {
             const ext = 'mkv';
             const directUrl = xtream.getSeriesStreamUrl(item.streamId, ext);
-            const bridgeUrl = buildVodBridgeUrl(session, 'series', item.streamId, ext, 0, item.progressSeconds);
-            const needsBridge = isMkvOrNeedsBridge(ext);
+            const fallbackDirectUrl = xtream.getSeriesStreamUrl(item.streamId, 'mp4');
             setPlayingEpisode({
               seriesTitle: item.title,
               episodeTitle: item.subtitle || 'Episodio',
-              url: needsBridge ? bridgeUrl : directUrl,
-              fallbackUrls: needsBridge ? [directUrl] : [bridgeUrl],
+              url: directUrl,
+              fallbackUrls: [fallbackDirectUrl],
               initialTime: item.progressSeconds,
               seriesId: item.seriesId,
               episodeId: item.streamId,

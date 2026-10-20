@@ -218,25 +218,16 @@ export const MoviesView: React.FC<MoviesViewProps> = ({ session, searchQuery }) 
     const detailExt = (movieDetail as any)?.movie_data?.container_extension;
     const ext = detailExt || movie.container_extension || 'mp4';
     const directUrl = xtream.getMovieStreamUrl(movie.stream_id, ext);
-    const needsBridge = isMkvOrNeedsBridge(ext);
+    const altExt = ext === 'mp4' ? 'mkv' : 'mp4';
+    const fallbackDirectUrl = xtream.getMovieStreamUrl(movie.stream_id, altExt);
 
-    if (needsBridge) {
-      const bridgeUrl = buildVodBridgeUrl(session, 'movie', movie.stream_id, ext, 0, initialTime);
-      setPlayingMovie({
-        movie,
-        url: bridgeUrl,
-        fallbackUrls: [directUrl],
-        initialTime,
-      });
-    } else {
-      const bridgeFallback = buildVodBridgeUrl(session, 'movie', movie.stream_id, ext, 0, initialTime);
-      setPlayingMovie({
-        movie,
-        url: directUrl,
-        fallbackUrls: [bridgeFallback],
-        initialTime,
-      });
-    }
+    // Conexión 100% directa al proveedor IPTV (Regla 1 / Cero tráfico de video por Cloudflare Tunnel)
+    setPlayingMovie({
+      movie,
+      url: directUrl,
+      fallbackUrls: [fallbackDirectUrl],
+      initialTime,
+    });
   };
 
   const toggleFavorite = async (movie: Movie) => {
